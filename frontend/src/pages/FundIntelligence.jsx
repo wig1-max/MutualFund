@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { TrendingUp, Search, BarChart3, Calculator, Grid3X3, RefreshCw, Loader2, ArrowUpRight, ArrowDownRight } from 'lucide-react'
+import { useToast } from '../components/Toast'
+import { TrendingUp, Search, BarChart3, Calculator, Layers, RefreshCw, Loader2, ArrowUpRight, ArrowDownRight } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, BarChart, Bar, Cell } from 'recharts'
 import FundSearch from '../components/FundSearch'
 import * as api from '../services/api'
@@ -9,7 +10,7 @@ const TABS = [
   { id: 'search', label: 'Fund Search', icon: Search },
   { id: 'compare', label: 'Compare Funds', icon: BarChart3 },
   { id: 'sip', label: 'SIP Backtest', icon: Calculator },
-  { id: 'heatmap', label: 'Category Heatmap', icon: Grid3X3 },
+  { id: 'heatmap', label: 'Category Browser', icon: Layers },
 ]
 
 const CHART_COLORS = ['#D4A847', '#1B2A4A', '#10b981', '#f59e0b', '#ef4444']
@@ -33,7 +34,7 @@ export default function FundIntelligence() {
   }
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="p-8 pt-16 lg:pt-8 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-[#1B2A4A] flex items-center gap-2">
@@ -80,6 +81,7 @@ export default function FundIntelligence() {
 
 // ---------- Fund Search Tab ----------
 function FundSearchTab() {
+  const { showToast } = useToast()
   const [selectedFund, setSelectedFund] = useState(null)
   const [returns, setReturns] = useState(null)
   const [risk, setRisk] = useState(null)
@@ -102,7 +104,7 @@ function FundSearchTab() {
       setRisk(rsk)
       setRolling(roll)
     } catch (err) {
-      console.error(err)
+      showToast(err.message, 'error')
     } finally {
       setLoading(false)
     }
@@ -205,6 +207,7 @@ function FundSearchTab() {
 
 // ---------- Fund Compare Tab ----------
 function FundCompareTab() {
+  const { showToast } = useToast()
   const [selected, setSelected] = useState([])
   const [comparison, setComparison] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -227,7 +230,7 @@ function FundCompareTab() {
       const data = await api.compareFunds(selected.map(f => f.scheme_code))
       setComparison(data)
     } catch (err) {
-      console.error(err)
+      showToast(err.message, 'error')
     } finally {
       setLoading(false)
     }
@@ -320,6 +323,8 @@ function SipBacktestTab() {
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
 
+  const { showToast } = useToast()
+
   const handleBacktest = async () => {
     if (!fund) return
     setLoading(true)
@@ -332,7 +337,7 @@ function SipBacktestTab() {
       })
       setResult(data)
     } catch (err) {
-      console.error(err)
+      showToast(err.message, 'error')
     } finally {
       setLoading(false)
     }
@@ -418,13 +423,15 @@ function CategoryHeatmapTab() {
     loadHeatmap()
   }, [])
 
+  const { showToast } = useToast()
+
   const loadHeatmap = async () => {
     setLoading(true)
     try {
       const result = await api.getCategoryHeatmap()
       setData(result)
     } catch (err) {
-      console.error(err)
+      showToast(err.message, 'error')
     } finally {
       setLoading(false)
     }
@@ -443,6 +450,7 @@ function CategoryHeatmapTab() {
 
   return (
     <div className="space-y-6">
+      <p className="text-sm text-gray-500">Browse AMFI fund categories. Performance heatmap coming soon.</p>
       {Object.entries(grouped).map(([type, items]) => (
         <div key={type} className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm">
           <h3 className="text-sm font-semibold text-[#1B2A4A] mb-4">{type}</h3>

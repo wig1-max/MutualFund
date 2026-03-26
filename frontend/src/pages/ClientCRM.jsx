@@ -4,6 +4,7 @@ import {
   Phone, Mail, Shield, Calendar, Clock, ChevronRight, ChevronLeft,
   Filter, Loader2, UserPlus, AlertCircle
 } from 'lucide-react'
+import { useToast } from '../components/Toast'
 import * as api from '../services/api'
 import { formatDate } from '../lib/utils'
 
@@ -27,6 +28,7 @@ const RISK_COLORS = {
 }
 
 export default function ClientCRM() {
+  const { showToast } = useToast()
   const [clients, setClients] = useState([])
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -50,7 +52,7 @@ export default function ClientCRM() {
       const data = await api.getClients(params)
       setClients(data)
     } catch (err) {
-      console.error(err)
+      showToast(err.message, 'error')
     } finally {
       setLoading(false)
     }
@@ -61,7 +63,7 @@ export default function ClientCRM() {
       const data = await api.getClientStats()
       setStats(data)
     } catch (err) {
-      console.error(err)
+      showToast(err.message, 'error')
     }
   }
 
@@ -84,8 +86,9 @@ export default function ClientCRM() {
       if (selectedClient?.id === id) setSelectedClient(null)
       loadClients()
       loadStats()
+      showToast('Client deleted', 'success')
     } catch (err) {
-      console.error(err)
+      showToast(err.message, 'error')
     }
   }
 
@@ -105,12 +108,12 @@ export default function ClientCRM() {
       const full = await api.getClient(client.id)
       setSelectedClient(full)
     } catch (err) {
-      console.error(err)
+      showToast(err.message, 'error')
     }
   }
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="p-8 pt-16 lg:pt-8 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
@@ -151,7 +154,7 @@ export default function ClientCRM() {
 
       <div className="flex gap-6">
         {/* Client List */}
-        <div className={`${selectedClient ? 'w-1/2' : 'w-full'} transition-all`}>
+        <div className={`${selectedClient ? 'lg:w-1/2' : 'w-full'} w-full transition-all`}>
           {/* Search & Filters */}
           <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm mb-4">
             <div className="flex gap-3">
@@ -274,20 +277,27 @@ export default function ClientCRM() {
           )}
         </div>
 
-        {/* Client Detail Panel */}
+        {/* Client Detail Panel — desktop: side-by-side, mobile: slide-over drawer */}
         {selectedClient && (
-          <ClientDetailPanel
-            client={selectedClient}
-            onClose={() => setSelectedClient(null)}
-            onEdit={() => { setEditingClient(selectedClient); setShowForm(true) }}
-            onDelete={() => handleDelete(selectedClient.id)}
-            onUpdate={async () => {
-              const full = await api.getClient(selectedClient.id)
-              setSelectedClient(full)
-              loadClients()
-              loadStats()
-            }}
-          />
+          <>
+            {/* Mobile backdrop */}
+            <div
+              className="lg:hidden fixed inset-0 bg-black/40 z-30"
+              onClick={() => setSelectedClient(null)}
+            />
+            <ClientDetailPanel
+              client={selectedClient}
+              onClose={() => setSelectedClient(null)}
+              onEdit={() => { setEditingClient(selectedClient); setShowForm(true) }}
+              onDelete={() => handleDelete(selectedClient.id)}
+              onUpdate={async () => {
+                const full = await api.getClient(selectedClient.id)
+                setSelectedClient(full)
+                loadClients()
+                loadStats()
+              }}
+            />
+          </>
         )}
       </div>
 
@@ -320,6 +330,7 @@ function StatCard({ label, value, icon: Icon, color, small }) {
 
 // ---------- Client Detail Panel ----------
 function ClientDetailPanel({ client, onClose, onEdit, onDelete, onUpdate }) {
+  const { showToast } = useToast()
   const [newNote, setNewNote] = useState('')
   const [addingNote, setAddingNote] = useState(false)
   const [completing, setCompleting] = useState(false)
@@ -332,7 +343,7 @@ function ClientDetailPanel({ client, onClose, onEdit, onDelete, onUpdate }) {
       setNewNote('')
       onUpdate()
     } catch (err) {
-      console.error(err)
+      showToast(err.message, 'error')
     } finally {
       setAddingNote(false)
     }
@@ -343,7 +354,7 @@ function ClientDetailPanel({ client, onClose, onEdit, onDelete, onUpdate }) {
       await api.deleteClientNote(client.id, noteId)
       onUpdate()
     } catch (err) {
-      console.error(err)
+      showToast(err.message, 'error')
     }
   }
 
@@ -352,8 +363,9 @@ function ClientDetailPanel({ client, onClose, onEdit, onDelete, onUpdate }) {
     try {
       await api.completeClientReview(client.id)
       onUpdate()
+      showToast('Review completed', 'success')
     } catch (err) {
-      console.error(err)
+      showToast(err.message, 'error')
     } finally {
       setCompleting(false)
     }
@@ -362,7 +374,7 @@ function ClientDetailPanel({ client, onClose, onEdit, onDelete, onUpdate }) {
   const reviewDue = client.next_review_date && client.next_review_date <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
   return (
-    <div className="w-1/2 bg-white border border-gray-100 rounded-xl shadow-sm overflow-y-auto" style={{ maxHeight: 'calc(100vh - 12rem)' }}>
+    <div className="fixed inset-y-0 right-0 w-96 z-40 lg:relative lg:inset-auto lg:w-1/2 lg:z-auto bg-white border border-gray-100 rounded-xl shadow-sm overflow-y-auto" style={{ maxHeight: 'calc(100vh - 12rem)' }}>
       {/* Header */}
       <div className="sticky top-0 bg-white border-b border-gray-100 p-5 z-10">
         <div className="flex items-center justify-between">

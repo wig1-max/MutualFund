@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { getDb } from '../db/index.js'
 import { fetchNavHistory, fetchLatestNav } from '../services/mfapi.js'
 import { calculateReturns } from '../services/calculations.js'
+import { batchPrefetchNavs } from '../services/navCache.js'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -17,6 +18,15 @@ try {
 } catch (e) {
   console.warn('fund-holdings.json not found, overlap analysis will be limited')
 }
+
+// GET /api/portfolio/total-aum — total invested across all clients
+router.get('/portfolio/total-aum', (req, res) => {
+  const db = getDb()
+  const total = db.prepare(
+    'SELECT COALESCE(SUM(invested_amount), 0) as totalAum FROM client_holdings'
+  ).get()
+  res.json({ totalAum: total.totalAum })
+})
 
 // GET /api/portfolio/:clientId — get all holdings for a client
 router.get('/portfolio/:clientId', (req, res) => {
@@ -119,75 +129,66 @@ router.get('/portfolio/:clientId/analysis', async (req, res) => {
     })
   }
 
-  // Fetch current NAVs and fund info for all holdings
-  const enriched = await Promise.all(
-    holdings.map(async (h) => {
-      try {
-        const fundInfo = db.prepare('SELECT * FROM funds WHERE scheme_code = ?').get(h.scheme_code)
-        const latestNav = fundInfo?.nav || null
-        const category = fundInfo?.scheme_category || ''
-        const amc = fundInfo?.amc || ''
-        const schemeType = fundInfo?.scheme_type || ''
+  // Batch-prefetch all NAV histories (uses SQLite cache, only hits mfapi.in for misses)
+  const schemeCodes = [...new Set(holdings.map(h => h.scheme_code))]
+  const navDataMap = await batchPrefetchNavs(schemeCodes)
 
-        // Calculate current value
-        let currentValue = h.invested_amount // fallback
-        if (h.units && latestNav) {
-          currentValue = h.units * latestNav
-        } else if (latestNav && h.invested_amount > 0) {
-          // Estimate: if no units given, try to get purchase NAV
-          // For simplicity, just use invested amount as current value estimate
-          // unless we can fetch historical NAV
-          currentValue = h.invested_amount // will be overridden below if we can calc
-        }
+  // Enrich holdings with fund info and cached NAV data
+  const enriched = holdings.map((h) => {
+    try {
+      const fundInfo = db.prepare('SELECT * FROM funds WHERE scheme_code = ?').get(h.scheme_code)
+      const latestNav = fundInfo?.nav || null
+      const category = fundInfo?.scheme_category || ''
+      const amc = fundInfo?.amc || ''
+      const schemeType = fundInfo?.scheme_type || ''
 
-        // Try to get returns for underperformer detection
-        let returns = null
-        try {
-          const { data: navData } = await fetchNavHistory(h.scheme_code)
-          returns = calculateReturns(navData)
+      let currentValue = h.invested_amount
+      if (h.units && latestNav) {
+        currentValue = h.units * latestNav
+      }
 
-          // If units not provided, estimate from purchase date
-          if (!h.units && h.purchase_date && navData.length > 0) {
-            const latestNavData = navData[navData.length - 1]
-            // Find NAV on purchase date
-            const purchaseNav = navData.find(d => d.date >= h.purchase_date)
-            if (purchaseNav) {
-              const estimatedUnits = h.invested_amount / purchaseNav.nav
-              currentValue = estimatedUnits * latestNavData.nav
-            }
-          } else if (h.units && navData.length > 0) {
-            currentValue = h.units * navData[navData.length - 1].nav
+      let returns = null
+      const navData = navDataMap[h.scheme_code]
+      if (navData && navData.length > 0) {
+        returns = calculateReturns(navData)
+
+        if (!h.units && h.purchase_date) {
+          const latestNavData = navData[navData.length - 1]
+          const purchaseNav = navData.find(d => d.date >= h.purchase_date)
+          if (purchaseNav) {
+            const estimatedUnits = h.invested_amount / purchaseNav.nav
+            currentValue = estimatedUnits * latestNavData.nav
           }
-        } catch (e) {
-          // NAV fetch failed, use invested amount
-        }
-
-        return {
-          ...h,
-          currentNav: latestNav,
-          currentValue,
-          gain: currentValue - h.invested_amount,
-          gainPercent: h.invested_amount > 0 ? ((currentValue - h.invested_amount) / h.invested_amount) * 100 : 0,
-          category,
-          amc,
-          schemeType,
-          returns,
-        }
-      } catch (e) {
-        return {
-          ...h,
-          currentNav: null,
-          currentValue: h.invested_amount,
-          gain: 0,
-          gainPercent: 0,
-          category: '',
-          amc: '',
-          schemeType: '',
-          returns: null,
+        } else if (h.units) {
+          currentValue = h.units * navData[navData.length - 1].nav
         }
       }
-    })
-  )
+
+      return {
+        ...h,
+        currentNav: latestNav,
+        currentValue,
+        gain: currentValue - h.invested_amount,
+        gainPercent: h.invested_amount > 0 ? ((currentValue - h.invested_amount) / h.invested_amount) * 100 : 0,
+        category,
+        amc,
+        schemeType,
+        returns,
+      }
+    } catch (e) {
+      return {
+        ...h,
+        currentNav: null,
+        currentValue: h.invested_amount,
+        gain: 0,
+        gainPercent: 0,
+        category: '',
+        amc: '',
+        schemeType: '',
+        returns: null,
+      }
+    }
+  })
 
   // Summary
   const totalInvested = enriched.reduce((s, h) => s + h.invested_amount, 0)

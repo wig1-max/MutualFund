@@ -58,3 +58,12 @@ CREATE TABLE IF NOT EXISTS client_holdings (
 
 CREATE INDEX IF NOT EXISTS idx_holdings_client ON client_holdings(client_id);
 CREATE INDEX IF NOT EXISTS idx_holdings_scheme ON client_holdings(scheme_code);
+
+CREATE TABLE IF NOT EXISTS nav_cache (
+  scheme_code TEXT NOT NULL,
+  date TEXT NOT NULL,
+  nav REAL NOT NULL,
+  cached_at TEXT DEFAULT (datetime('now')),
+  PRIMARY KEY (scheme_code, date)
+);
+CREATE INDEX IF NOT EXISTS idx_nav_cache_code ON nav_cache(scheme_code);

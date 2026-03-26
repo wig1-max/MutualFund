@@ -4,6 +4,7 @@ import {
   TrendingDown, Building2, Layers, BarChart3, ChevronRight, X
 } from 'lucide-react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
+import { useToast } from '../components/Toast'
 import FundSearch from '../components/FundSearch'
 import * as api from '../services/api'
 import { formatCurrency, formatPercent } from '../lib/utils'
@@ -11,6 +12,7 @@ import { formatCurrency, formatPercent } from '../lib/utils'
 const PIE_COLORS = ['#1B2A4A', '#D4A847', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899']
 
 export default function PortfolioXray() {
+  const { showToast } = useToast()
   const [clients, setClients] = useState([])
   const [selectedClientId, setSelectedClientId] = useState(null)
   const [holdings, setHoldings] = useState([])
@@ -20,7 +22,7 @@ export default function PortfolioXray() {
   const [showAddHolding, setShowAddHolding] = useState(false)
 
   useEffect(() => {
-    api.getClients().then(setClients).catch(console.error)
+    api.getClients().then(setClients).catch(err => showToast(err.message, 'error'))
   }, [])
 
   useEffect(() => {
@@ -32,7 +34,7 @@ export default function PortfolioXray() {
     setLoading(true)
     api.getPortfolio(selectedClientId)
       .then(data => setHoldings(data.holdings))
-      .catch(console.error)
+      .catch(err => showToast(err.message, 'error'))
       .finally(() => setLoading(false))
   }, [selectedClientId])
 
@@ -50,8 +52,9 @@ export default function PortfolioXray() {
       setHoldings(data.holdings)
       setShowAddHolding(false)
       setAnalysis(null)
+      showToast('Holding added', 'success')
     } catch (err) {
-      console.error(err)
+      showToast(err.message, 'error')
     }
   }
 
@@ -62,7 +65,7 @@ export default function PortfolioXray() {
       setHoldings(holdings.filter(h => h.id !== holdingId))
       setAnalysis(null)
     } catch (err) {
-      console.error(err)
+      showToast(err.message, 'error')
     }
   }
 
@@ -73,14 +76,14 @@ export default function PortfolioXray() {
       const data = await api.getPortfolioAnalysis(selectedClientId)
       setAnalysis(data)
     } catch (err) {
-      console.error(err)
+      showToast(err.message, 'error')
     } finally {
       setAnalyzing(false)
     }
   }
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="p-8 pt-16 lg:pt-8 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-[#1B2A4A] flex items-center gap-2">

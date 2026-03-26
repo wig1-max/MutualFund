@@ -261,11 +261,12 @@ export function sipBacktest(navData, monthlySip, startDate, endDate = null) {
   const cashflows = []
   const timeline = []
 
-  // Get first SIP date
-  let currentDate = new Date(startDate)
+  // Use fixed base date to avoid month-skipping when dates have 31 days
+  const baseDate = new Date(startDate)
 
-  while (true) {
-    const dateStr = currentDate.toISOString().split('T')[0]
+  for (let monthOffset = 0; ; monthOffset++) {
+    const sipDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + monthOffset, Math.min(baseDate.getDate(), 28))
+    const dateStr = sipDate.toISOString().split('T')[0]
     if (dateStr > end) break
 
     // Find NAV on this date (or closest available)
@@ -286,9 +287,6 @@ export function sipBacktest(navData, monthlySip, startDate, endDate = null) {
         units: totalUnits,
       })
     }
-
-    // Move to next month
-    currentDate.setMonth(currentDate.getMonth() + 1)
   }
 
   if (totalUnits === 0) return null

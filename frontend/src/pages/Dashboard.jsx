@@ -10,8 +10,10 @@ import {
   Target,
   Calculator,
   BarChart3,
+  Download,
 } from 'lucide-react'
-import { getClientStats } from '../services/api'
+import { getClientStats, getTotalAum, getLatestNav, downloadBackup } from '../services/api'
+import { formatCurrency } from '../lib/utils'
 
 const quickActions = [
   { label: 'Fund Intelligence', icon: TrendingUp, to: '/fund-intelligence' },
@@ -24,13 +26,22 @@ const quickActions = [
 
 export default function Dashboard() {
   const navigate = useNavigate()
-  const [niftyValue, setNiftyValue] = useState('')
+  const [niftyValue, setNiftyValue] = useState('—')
+  const [niftyDate, setNiftyDate] = useState('')
   const [stats, setStats] = useState(null)
+  const [totalAum, setTotalAum] = useState(null)
 
   useEffect(() => {
-    getClientStats()
-      .then(setStats)
-      .catch(() => {})
+    getClientStats().then(setStats).catch(() => {})
+    getTotalAum().then(data => setTotalAum(data.totalAum)).catch(() => {})
+    getLatestNav('100356')
+      .then(data => {
+        if (data?.data?.[0]) {
+          setNiftyValue(`\u20B9${parseFloat(data.data[0].nav).toLocaleString('en-IN')}`)
+          setNiftyDate(data.data[0].date)
+        }
+      })
+      .catch(() => setNiftyValue('—'))
   }, [])
 
   const statCards = [
@@ -42,7 +53,7 @@ export default function Dashboard() {
     },
     {
       title: 'Total AUM',
-      value: '\u20B90',
+      value: totalAum != null ? formatCurrency(totalAum) : '—',
       icon: IndianRupee,
       color: 'bg-emerald-50 text-emerald-600',
     },
@@ -62,11 +73,19 @@ export default function Dashboard() {
   ]
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="p-8 pt-16 lg:pt-8 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-[#1B2A4A]">Welcome back, Aryan</h1>
-        <p className="text-gray-500 mt-1">Here is your practice overview for today.</p>
+      <div className="flex items-start justify-between mb-8">
+        <div>
+          <h1 className="text-2xl font-bold text-[#1B2A4A]">Welcome back, Aryan</h1>
+          <p className="text-gray-500 mt-1">Here is your practice overview for today.</p>
+        </div>
+        <button
+          onClick={downloadBackup}
+          className="flex items-center gap-2 px-4 py-2 bg-[#1B2A4A] text-white rounded-lg text-sm font-medium hover:bg-[#1B2A4A]/90 transition-colors"
+        >
+          <Download size={16} /> Backup DB
+        </button>
       </div>
 
       {/* Stat Cards */}
@@ -85,13 +104,8 @@ export default function Dashboard() {
                   </p>
                   {stat.isMarket ? (
                     <div className="mt-2">
-                      <input
-                        type="text"
-                        placeholder="e.g. 22,450"
-                        value={niftyValue}
-                        onChange={(e) => setNiftyValue(e.target.value)}
-                        className="w-full border border-gray-200 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[#D4A847]"
-                      />
+                      <p className="text-2xl font-bold text-[#1B2A4A]">{niftyValue}</p>
+                      {niftyDate && <p className="text-[10px] text-gray-400 mt-0.5">NAV as of {niftyDate}</p>}
                     </div>
                   ) : (
                     <p className="text-2xl font-bold text-[#1B2A4A] mt-2">{stat.value}</p>

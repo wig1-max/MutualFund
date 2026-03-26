@@ -5,6 +5,11 @@ import * as calc from '../services/calculations.js'
 
 const router = Router()
 
+// Validate scheme code: must be 4-6 digits
+function isValidSchemeCode(code) {
+  return /^\d{4,6}$/.test(code)
+}
+
 // Sync AMFI data (rate-limited to once per 6 hours)
 router.post('/funds/sync', async (req, res) => {
   try {
@@ -39,6 +44,7 @@ router.post('/funds/sync', async (req, res) => {
 
 // Get fund by code (local DB)
 router.get('/funds/by-code/:code', (req, res) => {
+  if (!isValidSchemeCode(req.params.code)) return res.status(400).json({ message: 'Invalid scheme code — must be 4-6 digits' })
   const fund = getFundByCode(req.params.code)
   if (!fund) return res.status(404).json({ message: 'Fund not found in local database' })
   res.json(fund)
@@ -59,6 +65,7 @@ router.get('/funds/categories', (req, res) => {
 
 // Get fund NAV history
 router.get('/funds/:code/nav', async (req, res) => {
+  if (!isValidSchemeCode(req.params.code)) return res.status(400).json({ message: 'Invalid scheme code — must be 4-6 digits' })
   try {
     const data = await fetchNavHistory(req.params.code)
     res.json(data)
@@ -69,6 +76,7 @@ router.get('/funds/:code/nav', async (req, res) => {
 
 // Get latest NAV
 router.get('/funds/:code/nav/latest', async (req, res) => {
+  if (!isValidSchemeCode(req.params.code)) return res.status(400).json({ message: 'Invalid scheme code — must be 4-6 digits' })
   try {
     const data = await fetchLatestNav(req.params.code)
     res.json(data)
@@ -79,6 +87,7 @@ router.get('/funds/:code/nav/latest', async (req, res) => {
 
 // Calculate returns for a fund
 router.get('/funds/:code/returns', async (req, res) => {
+  if (!isValidSchemeCode(req.params.code)) return res.status(400).json({ message: 'Invalid scheme code — must be 4-6 digits' })
   try {
     const { data: navData } = await fetchNavHistory(req.params.code)
     const returns = calc.calculateReturns(navData)
@@ -90,6 +99,7 @@ router.get('/funds/:code/returns', async (req, res) => {
 
 // Rolling returns
 router.get('/funds/:code/returns/rolling', async (req, res) => {
+  if (!isValidSchemeCode(req.params.code)) return res.status(400).json({ message: 'Invalid scheme code — must be 4-6 digits' })
   try {
     const window = parseFloat(req.query.window)
     if (isNaN(window) || window <= 0) {
@@ -112,6 +122,7 @@ router.get('/funds/:code/returns/rolling', async (req, res) => {
 
 // Risk metrics
 router.get('/funds/:code/risk', async (req, res) => {
+  if (!isValidSchemeCode(req.params.code)) return res.status(400).json({ message: 'Invalid scheme code — must be 4-6 digits' })
   try {
     const { data: navData } = await fetchNavHistory(req.params.code)
     const period = parseFloat(req.query.period) || 3

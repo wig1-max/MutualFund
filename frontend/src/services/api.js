@@ -103,7 +103,18 @@ export function getClientStats() {
   return request('/clients/stats')
 }
 
+// ---- Backup ----
+
+export function downloadBackup() {
+  // Direct download — triggers browser file save
+  window.location.href = `${BASE_URL}/backup`
+}
+
 // ---- Portfolio X-Ray ----
+
+export function getTotalAum() {
+  return request('/portfolio/total-aum')
+}
 
 export function getPortfolio(clientId) {
   return request(`/portfolio/${clientId}`)

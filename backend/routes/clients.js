@@ -6,6 +6,7 @@ const router = Router()
 // Helper: calculate next review date from a base date and frequency
 function calcNextReview(baseDate, frequency) {
   const d = new Date(baseDate || Date.now())
+  const originalDay = d.getDate()
   switch (frequency) {
     case 'Monthly': d.setMonth(d.getMonth() + 1); break
     case 'Quarterly': d.setMonth(d.getMonth() + 3); break
@@ -13,6 +14,8 @@ function calcNextReview(baseDate, frequency) {
     case 'Annual': d.setFullYear(d.getFullYear() + 1); break
     default: d.setMonth(d.getMonth() + 3)
   }
+  // Clamp day if month overflowed (e.g., Jan 31 + 1 month should be Feb 28)
+  if (d.getDate() !== originalDay) d.setDate(0)
   return d.toISOString().split('T')[0]
 }
 

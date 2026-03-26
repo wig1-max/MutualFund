@@ -161,3 +161,13 @@ export function calculateGoalSip(data) {
 export function getGoalsSummary(clientId) {
   return request(`/goals/${clientId}/summary`)
 }
+
+// ---- Tax Optimization ----
+
+export function getTaxAnalysis(clientId) {
+  return request(`/tax/${clientId}/analysis`)
+}
+
+export function estimateTax(data) {
+  return request('/tax/estimate', { method: 'POST', body: JSON.stringify(data) })
+}

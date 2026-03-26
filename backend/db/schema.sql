@@ -43,3 +43,18 @@ CREATE TABLE IF NOT EXISTS client_notes (
 CREATE INDEX IF NOT EXISTS idx_clients_name ON clients(name);
 CREATE INDEX IF NOT EXISTS idx_clients_next_review ON clients(next_review_date);
 CREATE INDEX IF NOT EXISTS idx_client_notes_client ON client_notes(client_id);
+
+CREATE TABLE IF NOT EXISTS client_holdings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_id INTEGER NOT NULL,
+  scheme_code TEXT NOT NULL,
+  scheme_name TEXT,
+  invested_amount REAL NOT NULL DEFAULT 0,
+  units REAL,
+  purchase_date TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_holdings_client ON client_holdings(client_id);
+CREATE INDEX IF NOT EXISTS idx_holdings_scheme ON client_holdings(scheme_code);

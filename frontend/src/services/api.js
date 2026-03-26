@@ -102,3 +102,25 @@ export function completeClientReview(clientId) {
 export function getClientStats() {
   return request('/clients/stats')
 }
+
+// ---- Portfolio X-Ray ----
+
+export function getPortfolio(clientId) {
+  return request(`/portfolio/${clientId}`)
+}
+
+export function addHolding(clientId, data) {
+  return request(`/portfolio/${clientId}/holdings`, { method: 'POST', body: JSON.stringify(data) })
+}
+
+export function updateHolding(clientId, holdingId, data) {
+  return request(`/portfolio/${clientId}/holdings/${holdingId}`, { method: 'PUT', body: JSON.stringify(data) })
+}
+
+export function deleteHolding(clientId, holdingId) {
+  return request(`/portfolio/${clientId}/holdings/${holdingId}`, { method: 'DELETE' })
+}
+
+export function getPortfolioAnalysis(clientId) {
+  return request(`/portfolio/${clientId}/analysis`)
+}

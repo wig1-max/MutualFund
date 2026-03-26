@@ -4,6 +4,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import Dashboard from './pages/Dashboard'
 import FundIntelligence from './pages/FundIntelligence'
 import ClientCRM from './pages/ClientCRM'
+import PortfolioXray from './pages/PortfolioXray'
 
 export default function App() {
   return (
@@ -15,7 +16,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/fund-intelligence" element={<FundIntelligence />} />
-            <Route path="/portfolio-xray" element={<div className="p-8"><h1 className="text-2xl font-bold text-[#1B2A4A]">Portfolio X-Ray</h1><p className="text-gray-500 mt-2">Coming soon...</p></div>} />
+            <Route path="/portfolio-xray" element={<PortfolioXray />} />
             <Route path="/report-generator" element={<div className="p-8"><h1 className="text-2xl font-bold text-[#1B2A4A]">Report Generator</h1><p className="text-gray-500 mt-2">Coming soon...</p></div>} />
             <Route path="/goal-planner" element={<div className="p-8"><h1 className="text-2xl font-bold text-[#1B2A4A]">Goal Planner</h1><p className="text-gray-500 mt-2">Coming soon...</p></div>} />
             <Route path="/tax-optimizer" element={<div className="p-8"><h1 className="text-2xl font-bold text-[#1B2A4A]">Tax Optimizer</h1><p className="text-gray-500 mt-2">Coming soon...</p></div>} />

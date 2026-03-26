@@ -1,0 +1,42 @@
+{
+  "119598": {
+    "name": "HDFC Flexi Cap Fund - Growth",
+    "holdings": ["ICICI Bank", "HDFC Bank", "Infosys", "ITC", "Larsen & Toubro", "Axis Bank", "Bharti Airtel", "State Bank of India", "NTPC", "Reliance Industries", "Kotak Mahindra Bank", "Tata Consultancy Services", "HCL Technologies", "Mahindra & Mahindra", "Sun Pharma"]
+  },
+  "120503": {
+    "name": "SBI Bluechip Fund - Growth",
+    "holdings": ["HDFC Bank", "ICICI Bank", "Reliance Industries", "Infosys", "Tata Consultancy Services", "Larsen & Toubro", "Bharti Airtel", "ITC", "Axis Bank", "Mahindra & Mahindra", "State Bank of India", "Kotak Mahindra Bank", "HCL Technologies", "Sun Pharma", "Bajaj Finance"]
+  },
+  "120505": {
+    "name": "SBI Small Cap Fund - Growth",
+    "holdings": ["HDFC Bank", "Kalpataru Projects", "Blue Star", "Finolex Cables", "Chalet Hotels", "IIFL Finance", "Karur Vysya Bank", "Carborundum Universal", "Ratnamani Metals", "Suprajit Engineering", "EIH", "KPIT Technologies", "CMS Info Systems", "Sheela Foam", "Kaynes Technology"]
+  },
+  "118989": {
+    "name": "Axis Bluechip Fund - Growth",
+    "holdings": ["Bajaj Finance", "ICICI Bank", "HDFC Bank", "Infosys", "Tata Consultancy Services", "Avenue Supermarts", "Kotak Mahindra Bank", "Maruti Suzuki", "Bharti Airtel", "Reliance Industries", "HCL Technologies", "Titan Company", "Larsen & Toubro", "Nestle India", "Asian Paints"]
+  },
+  "122639": {
+    "name": "Parag Parikh Flexi Cap Fund - Growth",
+    "holdings": ["HDFC Bank", "ICICI Bank", "Bajaj Holdings", "ITC", "Power Grid Corporation", "Coal India", "Maruti Suzuki", "Bharti Airtel", "HCL Technologies", "Balkrishna Industries", "Alphabet Inc", "Amazon.com Inc", "Microsoft Corp", "Meta Platforms", "Suzuki Motor Corp"]
+  },
+  "119597": {
+    "name": "HDFC Mid-Cap Opportunities Fund - Growth",
+    "holdings": ["Indian Hotels", "Max Healthcare", "Persistent Systems", "Coforge", "Sundaram Finance", "Trent", "The Federal Bank", "Oberoi Realty", "AU Small Finance Bank", "Balkrishna Industries", "Dalmia Bharat", "Voltas", "Cummins India", "Supreme Industries", "Cholamandalam Investment"]
+  },
+  "125497": {
+    "name": "Mirae Asset Large Cap Fund - Growth",
+    "holdings": ["HDFC Bank", "ICICI Bank", "Reliance Industries", "Infosys", "Bharti Airtel", "Tata Consultancy Services", "Larsen & Toubro", "ITC", "Axis Bank", "State Bank of India", "Kotak Mahindra Bank", "Bajaj Finance", "Maruti Suzuki", "HCL Technologies", "Sun Pharma"]
+  },
+  "120586": {
+    "name": "Kotak Emerging Equity Fund - Growth",
+    "holdings": ["Persistent Systems", "Supreme Industries", "Sundaram Finance", "Schaeffler India", "The Federal Bank", "Oberoi Realty", "CG Power", "Navin Fluorine", "Indian Hotels", "Cummins India", "Voltas", "AU Small Finance Bank", "Tube Investments", "Timken India", "Max Healthcare"]
+  },
+  "118834": {
+    "name": "Nippon India Small Cap Fund - Growth",
+    "holdings": ["HDFC Bank", "Multi Commodity Exchange", "Tube Investments", "Karur Vysya Bank", "Apar Industries", "KPIT Technologies", "Radico Khaitan", "Krishna Institute of Medical Sciences", "Blue Star", "Kalpataru Projects", "CMS Info Systems", "Finolex Industries", "Ratnamani Metals", "EIH", "Kaynes Technology"]
+  },
+  "100356": {
+    "name": "UTI Nifty 50 Index Fund - Growth",
+    "holdings": ["HDFC Bank", "Reliance Industries", "ICICI Bank", "Infosys", "Tata Consultancy Services", "Bharti Airtel", "ITC", "Larsen & Toubro", "State Bank of India", "Axis Bank", "Kotak Mahindra Bank", "Bajaj Finance", "Mahindra & Mahindra", "HCL Technologies", "Sun Pharma"]
+  }
+}

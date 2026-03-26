@@ -5,14 +5,43 @@ import * as calc from '../services/calculations.js'
 
 const router = Router()
 
-// Sync AMFI data
+// Sync AMFI data (rate-limited to once per 6 hours)
 router.post('/funds/sync', async (req, res) => {
   try {
+    const force = req.query.force === 'true'
+
+    if (!force) {
+      const { getDb } = await import('../db/index.js')
+      const db = getDb()
+      const lastSync = db.prepare(
+        "SELECT MAX(updated_at) as last_sync FROM funds"
+      ).get()
+
+      if (lastSync?.last_sync) {
+        const hoursSinceSync = (Date.now() - new Date(lastSync.last_sync + 'Z').getTime()) / (1000 * 60 * 60)
+        if (hoursSinceSync < 6) {
+          return res.json({
+            synced: 0,
+            skipped: true,
+            message: `Last sync was ${hoursSinceSync.toFixed(1)} hours ago. Use ?force=true to override.`,
+            lastSync: lastSync.last_sync
+          })
+        }
+      }
+    }
+
     const result = await syncAmfiData()
     res.json(result)
   } catch (err) {
     res.status(500).json({ message: 'Failed to sync AMFI data', detail: err.message })
   }
+})
+
+// Get fund by code (local DB)
+router.get('/funds/by-code/:code', (req, res) => {
+  const fund = getFundByCode(req.params.code)
+  if (!fund) return res.status(404).json({ message: 'Fund not found in local database' })
+  res.json(fund)
 })
 
 // Search funds
@@ -62,9 +91,17 @@ router.get('/funds/:code/returns', async (req, res) => {
 // Rolling returns
 router.get('/funds/:code/returns/rolling', async (req, res) => {
   try {
-    const window = parseFloat(req.query.window) || 1
-    const period = req.query.period || '5y'
-    const periodYears = parseFloat(period) || 5
+    const window = parseFloat(req.query.window)
+    if (isNaN(window) || window <= 0) {
+      return res.status(400).json({ message: 'window must be a positive number (years)' })
+    }
+
+    const periodMatch = (req.query.period || '5').toString().match(/^(\d+\.?\d*)/)
+    const periodYears = periodMatch ? parseFloat(periodMatch[1]) : 5
+    if (isNaN(periodYears) || periodYears <= 0) {
+      return res.status(400).json({ message: 'period must be a positive number (years)' })
+    }
+
     const { data: navData } = await fetchNavHistory(req.params.code)
     const results = calc.rollingReturns(navData, window, periodYears)
     res.json(results)
@@ -93,7 +130,17 @@ router.get('/funds/compare', async (req, res) => {
   try {
     let codes = req.query.codes
     if (!codes) return res.status(400).json({ message: 'Provide codes query param' })
-    if (!Array.isArray(codes)) codes = [codes]
+
+    // Support both comma-separated string and repeated params
+    if (typeof codes === 'string') {
+      codes = codes.split(',').map(c => c.trim()).filter(Boolean)
+    }
+    if (!Array.isArray(codes) || codes.length === 0) {
+      return res.status(400).json({ message: 'Provide at least one fund code' })
+    }
+    if (codes.length > 10) {
+      return res.status(400).json({ message: 'Maximum 10 funds for comparison' })
+    }
 
     const results = await Promise.all(
       codes.map(async (code) => {

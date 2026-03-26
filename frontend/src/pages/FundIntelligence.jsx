@@ -138,7 +138,7 @@ function FundSearchTab() {
 
           {/* Returns Table */}
           <div className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm">
-            <h3 className="text-sm font-semibold text-[#1B2A4A] mb-4 uppercase tracking-wide">Returns (CAGR)</h3>
+            <h3 className="text-sm font-semibold text-[#1B2A4A] mb-4 uppercase tracking-wide">Returns</h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
               {['1M', '3M', '6M', '1Y', '3Y', '5Y', '10Y', 'SI'].map((period) => {
                 const data = returns[period]
@@ -146,9 +146,12 @@ function FundSearchTab() {
                   <div key={period} className="text-center p-3 rounded-lg bg-gray-50">
                     <p className="text-xs text-gray-400 font-medium">{period}</p>
                     {data ? (
-                      <p className={`text-lg font-bold mt-1 ${data.return >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                        {formatPercent(data.return)}
-                      </p>
+                      <>
+                        <p className={`text-lg font-bold mt-1 ${data.return >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                          {formatPercent(data.return)}
+                        </p>
+                        <p className="text-[10px] text-gray-300 mt-0.5">{data.annualized ? 'CAGR' : 'abs'}</p>
+                      </>
                     ) : (
                       <p className="text-sm text-gray-300 mt-1">N/A</p>
                     )}

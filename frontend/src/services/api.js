@@ -26,8 +26,7 @@ export function getLatestNav(schemeCode) {
 }
 
 export function compareFunds(schemeCodes) {
-  const params = schemeCodes.map((c) => `codes=${c}`).join('&')
-  return request(`/funds/compare?${params}`)
+  return request(`/funds/compare?codes=${schemeCodes.join(',')}`)
 }
 
 export function getCategories() {
@@ -59,4 +58,8 @@ export function sipBacktest(params) {
 
 export function getCategoryHeatmap() {
   return request('/funds/heatmap')
+}
+
+export function getFundByCode(schemeCode) {
+  return request(`/funds/by-code/${schemeCode}`)
 }

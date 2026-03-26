@@ -11,7 +11,14 @@ function getCached(key, ttl) {
   return null
 }
 
+const MAX_CACHE_SIZE = 100
+
 function setCache(key, data) {
+  // Simple LRU: if cache is full, delete oldest entry
+  if (cache.size >= MAX_CACHE_SIZE) {
+    const oldestKey = cache.keys().next().value
+    cache.delete(oldestKey)
+  }
   cache.set(key, { data, timestamp: Date.now() })
 }
 

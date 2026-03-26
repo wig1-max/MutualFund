@@ -1,10 +1,12 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Sidebar from './components/Sidebar'
+import ErrorBoundary from './components/ErrorBoundary'
 import Dashboard from './pages/Dashboard'
 import FundIntelligence from './pages/FundIntelligence'
 
 export default function App() {
   return (
+    <ErrorBoundary>
     <BrowserRouter>
       <div className="flex min-h-screen bg-[#f8f9fc]">
         <Sidebar />
@@ -21,5 +23,6 @@ export default function App() {
         </main>
       </div>
     </BrowserRouter>
+    </ErrorBoundary>
   )
 }

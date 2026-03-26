@@ -4,15 +4,25 @@ export function cagr(startNav, endNav, years) {
   return (Math.pow(endNav / startNav, 1 / years) - 1) * 100
 }
 
-// Get NAV on or closest before a given date
+// Get NAV on or closest before a given date (binary search)
 export function getNavOnDate(navData, targetDate) {
-  // navData is sorted ascending by date
-  let closest = null
-  for (const d of navData) {
-    if (d.date <= targetDate) closest = d
-    else break
+  if (!navData || navData.length === 0) return null
+
+  let low = 0
+  let high = navData.length - 1
+  let result = null
+
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2)
+    if (navData[mid].date <= targetDate) {
+      result = navData[mid]
+      low = mid + 1
+    } else {
+      high = mid - 1
+    }
   }
-  return closest
+
+  return result
 }
 
 // Calculate returns for standard periods
@@ -43,8 +53,18 @@ export function calculateReturns(navData) {
     const pastNav = getNavOnDate(navData, pastDateStr)
     if (pastNav) {
       const years = days / 365
+
+      // Use absolute return for sub-1Y, CAGR for 1Y+
+      let returnValue
+      if (days < 365) {
+        returnValue = ((latest.nav - pastNav.nav) / pastNav.nav) * 100
+      } else {
+        returnValue = cagr(pastNav.nav, latest.nav, years)
+      }
+
       results[label] = {
-        return: cagr(pastNav.nav, latest.nav, years),
+        return: returnValue,
+        annualized: days >= 365,
         startNav: pastNav.nav,
         startDate: pastNav.date,
         endNav: latest.nav,
@@ -110,7 +130,12 @@ export function rollingReturns(navData, windowYears = 1, periodYears = 5) {
   // Sample to ~200 points for performance
   if (results.length > 200) {
     const step = Math.floor(results.length / 200)
-    return results.filter((_, i) => i % step === 0)
+    const sampled = results.filter((_, i) => i % step === 0)
+    // Always include the most recent data point
+    if (sampled[sampled.length - 1] !== results[results.length - 1]) {
+      sampled.push(results[results.length - 1])
+    }
+    return sampled
   }
 
   return results
@@ -181,6 +206,11 @@ export function xirr(cashflows) {
   // cashflows: [{date: 'YYYY-MM-DD', amount: number}]
   // Negative amounts are investments, positive amounts are redemptions/current value
   if (!cashflows || cashflows.length < 2) return null
+
+  // Guard: must have at least one positive and one negative cashflow
+  const hasPositive = cashflows.some(cf => cf.amount > 0)
+  const hasNegative = cashflows.some(cf => cf.amount < 0)
+  if (!hasPositive || !hasNegative) return null
 
   const dates = cashflows.map(cf => new Date(cf.date).getTime())
   const amounts = cashflows.map(cf => cf.amount)

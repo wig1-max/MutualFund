@@ -3,6 +3,7 @@ import Sidebar from './components/Sidebar'
 import ErrorBoundary from './components/ErrorBoundary'
 import Dashboard from './pages/Dashboard'
 import FundIntelligence from './pages/FundIntelligence'
+import ClientCRM from './pages/ClientCRM'
 
 export default function App() {
   return (
@@ -18,7 +19,7 @@ export default function App() {
             <Route path="/report-generator" element={<div className="p-8"><h1 className="text-2xl font-bold text-[#1B2A4A]">Report Generator</h1><p className="text-gray-500 mt-2">Coming soon...</p></div>} />
             <Route path="/goal-planner" element={<div className="p-8"><h1 className="text-2xl font-bold text-[#1B2A4A]">Goal Planner</h1><p className="text-gray-500 mt-2">Coming soon...</p></div>} />
             <Route path="/tax-optimizer" element={<div className="p-8"><h1 className="text-2xl font-bold text-[#1B2A4A]">Tax Optimizer</h1><p className="text-gray-500 mt-2">Coming soon...</p></div>} />
-            <Route path="/crm" element={<div className="p-8"><h1 className="text-2xl font-bold text-[#1B2A4A]">Client CRM</h1><p className="text-gray-500 mt-2">Coming soon...</p></div>} />
+            <Route path="/crm" element={<ClientCRM />} />
           </Routes>
         </main>
       </div>

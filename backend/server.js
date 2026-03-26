@@ -1,6 +1,7 @@
 import express from 'express'
 import cors from 'cors'
 import fundsRouter from './routes/funds.js'
+import clientsRouter from './routes/clients.js'
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -10,6 +11,7 @@ app.use(express.json())
 
 // API routes
 app.use('/api', fundsRouter)
+app.use('/api', clientsRouter)
 
 // Health check
 app.get('/api/health', (req, res) => {

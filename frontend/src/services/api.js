@@ -63,3 +63,42 @@ export function getCategoryHeatmap() {
 export function getFundByCode(schemeCode) {
   return request(`/funds/by-code/${schemeCode}`)
 }
+
+// ---- Client CRM ----
+
+export function getClients(params = {}) {
+  const qs = new URLSearchParams(params).toString()
+  return request(`/clients${qs ? '?' + qs : ''}`)
+}
+
+export function getClient(id) {
+  return request(`/clients/${id}`)
+}
+
+export function createClient(data) {
+  return request('/clients', { method: 'POST', body: JSON.stringify(data) })
+}
+
+export function updateClient(id, data) {
+  return request(`/clients/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+}
+
+export function deleteClient(id) {
+  return request(`/clients/${id}`, { method: 'DELETE' })
+}
+
+export function addClientNote(clientId, note) {
+  return request(`/clients/${clientId}/notes`, { method: 'POST', body: JSON.stringify({ note }) })
+}
+
+export function deleteClientNote(clientId, noteId) {
+  return request(`/clients/${clientId}/notes/${noteId}`, { method: 'DELETE' })
+}
+
+export function completeClientReview(clientId) {
+  return request(`/clients/${clientId}/complete-review`, { method: 'POST' })
+}
+
+export function getClientStats() {
+  return request('/clients/stats')
+}

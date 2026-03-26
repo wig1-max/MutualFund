@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Users,
@@ -11,35 +11,7 @@ import {
   Calculator,
   BarChart3,
 } from 'lucide-react'
-
-const stats = [
-  {
-    title: 'Total Clients',
-    value: '0',
-    icon: Users,
-    color: 'bg-blue-50 text-blue-600',
-  },
-  {
-    title: 'Total AUM',
-    value: '\u20B90',
-    icon: IndianRupee,
-    color: 'bg-emerald-50 text-emerald-600',
-  },
-  {
-    title: 'Reviews Due',
-    value: '0',
-    icon: ClipboardCheck,
-    color: 'bg-amber-50 text-amber-600',
-  },
-  {
-    title: 'Market Pulse',
-    value: 'Nifty 50',
-    subtitle: 'Enter value manually',
-    icon: BarChart3,
-    color: 'bg-purple-50 text-purple-600',
-    isMarket: true,
-  },
-]
+import { getClientStats } from '../services/api'
 
 const quickActions = [
   { label: 'Fund Intelligence', icon: TrendingUp, to: '/fund-intelligence' },
@@ -52,7 +24,42 @@ const quickActions = [
 
 export default function Dashboard() {
   const navigate = useNavigate()
-  const [niftyValue, setNiftyValue] = React.useState('')
+  const [niftyValue, setNiftyValue] = useState('')
+  const [stats, setStats] = useState(null)
+
+  useEffect(() => {
+    getClientStats()
+      .then(setStats)
+      .catch(() => {})
+  }, [])
+
+  const statCards = [
+    {
+      title: 'Total Clients',
+      value: stats ? String(stats.totalClients) : '—',
+      icon: Users,
+      color: 'bg-blue-50 text-blue-600',
+    },
+    {
+      title: 'Total AUM',
+      value: '\u20B90',
+      icon: IndianRupee,
+      color: 'bg-emerald-50 text-emerald-600',
+    },
+    {
+      title: 'Reviews Due',
+      value: stats ? String(stats.reviewsDueThisWeek) : '—',
+      icon: ClipboardCheck,
+      color: 'bg-amber-50 text-amber-600',
+    },
+    {
+      title: 'Market Pulse',
+      value: 'Nifty 50',
+      icon: BarChart3,
+      color: 'bg-purple-50 text-purple-600',
+      isMarket: true,
+    },
+  ]
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
@@ -64,7 +71,7 @@ export default function Dashboard() {
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
-        {stats.map((stat) => {
+        {statCards.map((stat) => {
           const Icon = stat.icon
           return (
             <div

@@ -78,6 +78,7 @@ export default function ClientCRM() {
   }, [searchInput])
 
   const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this client? All their notes will also be deleted. This cannot be undone.')) return
     try {
       await api.deleteClient(id)
       if (selectedClient?.id === id) setSelectedClient(null)

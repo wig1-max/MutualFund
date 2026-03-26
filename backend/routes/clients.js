@@ -157,7 +157,10 @@ router.put('/clients/:id', (req, res) => {
   const { name, phone, email, pan, risk_profile, onboarding_date, referred_by, tags, review_frequency } = req.body
 
   const freq = review_frequency || existing.review_frequency
-  const nextReview = calcNextReview(new Date().toISOString().split('T')[0], freq)
+  // Only recalculate next_review_date if review_frequency actually changed
+  const nextReview = (review_frequency && review_frequency !== existing.review_frequency)
+    ? calcNextReview(new Date().toISOString().split('T')[0], freq)
+    : existing.next_review_date
 
   db.prepare(`
     UPDATE clients SET

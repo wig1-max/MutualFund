@@ -4,6 +4,7 @@ import fundsRouter from './routes/funds.js'
 import clientsRouter from './routes/clients.js'
 import portfolioRouter from './routes/portfolio.js'
 import backupRouter from './routes/backup.js'
+import goalsRouter from './routes/goals.js'
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -16,6 +17,7 @@ app.use('/api', fundsRouter)
 app.use('/api', clientsRouter)
 app.use('/api', portfolioRouter)
 app.use('/api', backupRouter)
+app.use('/api', goalsRouter)
 
 // Health check
 app.get('/api/health', (req, res) => {

@@ -135,3 +135,29 @@ export function deleteHolding(clientId, holdingId) {
 export function getPortfolioAnalysis(clientId) {
   return request(`/portfolio/${clientId}/analysis`)
 }
+
+// ---- Goal-Based SIP Planner ----
+
+export function getGoals(clientId) {
+  return request(`/goals/${clientId}`)
+}
+
+export function createGoal(clientId, data) {
+  return request(`/goals/${clientId}`, { method: 'POST', body: JSON.stringify(data) })
+}
+
+export function updateGoal(clientId, goalId, data) {
+  return request(`/goals/${clientId}/${goalId}`, { method: 'PUT', body: JSON.stringify(data) })
+}
+
+export function deleteGoal(clientId, goalId) {
+  return request(`/goals/${clientId}/${goalId}`, { method: 'DELETE' })
+}
+
+export function calculateGoalSip(data) {
+  return request('/goals/calculate', { method: 'POST', body: JSON.stringify(data) })
+}
+
+export function getGoalsSummary(clientId) {
+  return request(`/goals/${clientId}/summary`)
+}

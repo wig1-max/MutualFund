@@ -59,6 +59,26 @@ CREATE TABLE IF NOT EXISTS client_holdings (
 CREATE INDEX IF NOT EXISTS idx_holdings_client ON client_holdings(client_id);
 CREATE INDEX IF NOT EXISTS idx_holdings_scheme ON client_holdings(scheme_code);
 
+CREATE TABLE IF NOT EXISTS client_goals (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_id INTEGER NOT NULL,
+  goal_name TEXT NOT NULL,
+  goal_type TEXT NOT NULL DEFAULT 'Custom',
+  target_amount REAL NOT NULL,
+  target_year INTEGER NOT NULL,
+  current_savings REAL NOT NULL DEFAULT 0,
+  expected_return REAL NOT NULL DEFAULT 12,
+  inflation_rate REAL NOT NULL DEFAULT 6,
+  monthly_sip REAL,
+  priority TEXT DEFAULT 'Medium' CHECK(priority IN ('High', 'Medium', 'Low')),
+  notes TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_goals_client ON client_goals(client_id);
+
 CREATE TABLE IF NOT EXISTS nav_cache (
   scheme_code TEXT NOT NULL,
   date TEXT NOT NULL,

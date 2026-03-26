@@ -9,6 +9,7 @@ import ClientCRM from './pages/ClientCRM'
 import PortfolioXray from './pages/PortfolioXray'
 import GoalPlanner from './pages/GoalPlanner'
 import TaxOptimizer from './pages/TaxOptimizer'
+import ReportGenerator from './pages/ReportGenerator'
 
 export default function App() {
   return (
@@ -23,7 +24,7 @@ export default function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/fund-intelligence" element={<FundIntelligence />} />
             <Route path="/portfolio-xray" element={<PortfolioXray />} />
-            <Route path="/report-generator" element={<div className="p-8"><h1 className="text-2xl font-bold text-[#1B2A4A]">Report Generator</h1><p className="text-gray-500 mt-2">Coming soon...</p></div>} />
+            <Route path="/report-generator" element={<ReportGenerator />} />
             <Route path="/goal-planner" element={<GoalPlanner />} />
             <Route path="/tax-optimizer" element={<TaxOptimizer />} />
             <Route path="/crm" element={<ClientCRM />} />

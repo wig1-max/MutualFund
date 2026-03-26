@@ -171,3 +171,13 @@ export function getTaxAnalysis(clientId) {
 export function estimateTax(data) {
   return request('/tax/estimate', { method: 'POST', body: JSON.stringify(data) })
 }
+
+// ---- AI Report Generator ----
+
+export function getReportTypes() {
+  return request('/reports/types')
+}
+
+export function generateReport(data) {
+  return request('/reports/generate', { method: 'POST', body: JSON.stringify(data) })
+}

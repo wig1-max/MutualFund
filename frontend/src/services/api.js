@@ -181,3 +181,49 @@ export function getReportTypes() {
 export function generateReport(data) {
   return request('/reports/generate', { method: 'POST', body: JSON.stringify(data) })
 }
+
+// ---- Client Profiling ----
+
+export function getClientProfile(clientId) {
+  return request(`/profiling/${clientId}`)
+}
+
+export function saveClientProfile(clientId, data) {
+  return request(`/profiling/${clientId}`, { method: 'POST', body: JSON.stringify(data) })
+}
+
+export function getProfilingSummary() {
+  return request('/profiling/summary/all')
+}
+
+// ---- Scoring & Recommendations ----
+
+export function runScoring(clientId) {
+  return request(`/scoring/${clientId}/run`, { method: 'POST' })
+}
+
+export function getRecommendations(clientId) {
+  return request(`/scoring/${clientId}/recommendations`)
+}
+
+export function enrichMetrics(schemeCode) {
+  return request(`/scoring/enrich-metrics/${schemeCode}`, { method: 'POST' })
+}
+
+// ---- CAS Import ----
+
+export function parseCas(clientId, casText) {
+  return request(`/cas/${clientId}/parse`, { method: 'POST', body: JSON.stringify({ cas_text: casText }) })
+}
+
+export function importCas(clientId, folios, replaceExisting = false) {
+  return request(`/cas/${clientId}/import`, { method: 'POST', body: JSON.stringify({ folios, replace_existing: replaceExisting }) })
+}
+
+export function getCasHoldings(clientId) {
+  return request(`/cas/${clientId}`)
+}
+
+export function deleteCasHoldings(clientId) {
+  return request(`/cas/${clientId}`, { method: 'DELETE' })
+}

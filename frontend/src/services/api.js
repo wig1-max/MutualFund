@@ -13,8 +13,8 @@ async function request(path, options = {}) {
   return res.json()
 }
 
-export function searchFunds(query) {
-  return request(`/funds/search?q=${encodeURIComponent(query)}`)
+export function searchFunds(query, options = {}) {
+  return request(`/funds/search?q=${encodeURIComponent(query)}`, options)
 }
 
 export function getFundNav(schemeCode) {

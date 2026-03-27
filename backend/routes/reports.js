@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { getDb } from '../db/index.js'
 import { batchPrefetchNavs } from '../services/navCache.js'
 import { calculateReturns, getNavOnDate } from '../services/calculations.js'
+import { isEquityFund } from '../utils/fundClassification.js'
 
 const router = Router()
 
@@ -264,20 +265,6 @@ async function gatherClientData(db, clientId, dataSources) {
   data.recentNotes = notes
 
   return data
-}
-
-function isEquityFund(category) {
-  if (!category) return false
-  const lower = category.toLowerCase()
-  return (
-    lower.includes('equity') || lower.includes('large cap') || lower.includes('mid cap') ||
-    lower.includes('small cap') || lower.includes('flexi cap') || lower.includes('multi cap') ||
-    lower.includes('elss') || lower.includes('value') || lower.includes('contra') ||
-    lower.includes('focused') || lower.includes('dividend yield') || lower.includes('sectoral') ||
-    lower.includes('thematic') || lower.includes('index') || lower.includes('etf') ||
-    lower.includes('aggressive hybrid') || lower.includes('balanced advantage') ||
-    lower.includes('equity savings')
-  )
 }
 
 function buildPrompt(client, reportType, data, customInstructions) {

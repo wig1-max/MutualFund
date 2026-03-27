@@ -6,9 +6,11 @@ export default function useFundSearch(query) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const timerRef = useRef(null)
+  const abortRef = useRef(null)
 
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current)
+    if (abortRef.current) abortRef.current.abort()
 
     if (!query || query.trim().length < 2) {
       setResults([])
@@ -21,10 +23,12 @@ export default function useFundSearch(query) {
     setError(null)
 
     timerRef.current = setTimeout(async () => {
+      abortRef.current = new AbortController()
       try {
-        const data = await searchFunds(query.trim())
+        const data = await searchFunds(query.trim(), { signal: abortRef.current.signal })
         setResults(data)
       } catch (err) {
+        if (err.name === 'AbortError') return // expected when superseded by new search
         setError(err.message)
         setResults([])
       } finally {
@@ -34,6 +38,7 @@ export default function useFundSearch(query) {
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current)
+      if (abortRef.current) abortRef.current.abort()
     }
   }, [query])
 

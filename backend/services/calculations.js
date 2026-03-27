@@ -5,8 +5,12 @@ export function cagr(startNav, endNav, years) {
 }
 
 // Get NAV on or closest before a given date (binary search)
+// Requires navData sorted ascending by date (as provided by mfapi.js)
 export function getNavOnDate(navData, targetDate) {
   if (!navData || navData.length === 0) return null
+  if (navData.length > 1 && navData[0].date > navData[navData.length - 1].date) {
+    console.warn('getNavOnDate: navData is not sorted ascending by date — results may be incorrect')
+  }
 
   let low = 0
   let high = navData.length - 1

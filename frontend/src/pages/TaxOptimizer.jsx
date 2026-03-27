@@ -27,20 +27,12 @@ export default function TaxOptimizer() {
       setAnalysis(null)
       return
     }
-    loadAnalysis()
-  }, [selectedClientId])
-
-  const loadAnalysis = async () => {
     setLoading(true)
-    try {
-      const data = await api.getTaxAnalysis(selectedClientId)
-      setAnalysis(data)
-    } catch (err) {
-      showToast(err.message, 'error')
-    } finally {
-      setLoading(false)
-    }
-  }
+    api.getTaxAnalysis(selectedClientId)
+      .then(setAnalysis)
+      .catch(err => showToast(err.message, 'error'))
+      .finally(() => setLoading(false))
+  }, [selectedClientId])
 
   return (
     <div className="p-8 pt-16 lg:pt-8 max-w-7xl mx-auto">

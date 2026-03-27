@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { getDb } from '../db/index.js'
 import { batchPrefetchNavs } from '../services/navCache.js'
 import { getNavOnDate } from '../services/calculations.js'
+import { isEquityFund } from '../utils/fundClassification.js'
 
 const router = Router()
 
@@ -13,22 +14,6 @@ const router = Router()
 const TAX_RATES = {
   equity: { stcg: 20, ltcg: 12.5, ltcgExemption: 125000, holdingPeriod: 12 },
   debt: { stcg: 30, ltcg: 30, ltcgExemption: 0, holdingPeriod: 36 },
-}
-
-// Determine if a fund is equity-oriented based on its category
-function isEquityFund(category) {
-  if (!category) return false
-  const lower = category.toLowerCase()
-  return (
-    lower.includes('equity') || lower.includes('large cap') || lower.includes('mid cap') ||
-    lower.includes('small cap') || lower.includes('flexi cap') || lower.includes('multi cap') ||
-    lower.includes('elss') || lower.includes('value') || lower.includes('contra') ||
-    lower.includes('focused') || lower.includes('dividend yield') || lower.includes('sectoral') ||
-    lower.includes('thematic') || lower.includes('index') || lower.includes('etf') ||
-    // Hybrid equity-oriented
-    lower.includes('aggressive hybrid') || lower.includes('balanced advantage') ||
-    lower.includes('equity savings')
-  )
 }
 
 // GET /api/tax/:clientId/analysis — full tax analysis for a client's holdings

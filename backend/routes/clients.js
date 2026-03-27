@@ -3,20 +3,33 @@ import { getDb } from '../db/index.js'
 
 const router = Router()
 
-// Helper: calculate next review date from a base date and frequency
-function calcNextReview(baseDate, frequency) {
+// Helper: calculate next review date from a base date and frequency.
+// anchorDay preserves the client's original onboarding day-of-month across
+// review cycles, preventing month-end dates from drifting (e.g., 31 → 28).
+function calcNextReview(baseDate, frequency, anchorDay) {
   const d = new Date(baseDate || Date.now())
-  const originalDay = d.getDate()
-  switch (frequency) {
-    case 'Monthly': d.setMonth(d.getMonth() + 1); break
-    case 'Quarterly': d.setMonth(d.getMonth() + 3); break
-    case 'Half-yearly': d.setMonth(d.getMonth() + 6); break
-    case 'Annual': d.setFullYear(d.getFullYear() + 1); break
-    default: d.setMonth(d.getMonth() + 3)
-  }
-  // Clamp day if month overflowed (e.g., Jan 31 + 1 month should be Feb 28)
-  if (d.getDate() !== originalDay) d.setDate(0)
-  return d.toISOString().split('T')[0]
+  const dayOfMonth = anchorDay || d.getDate()
+  const monthsToAdd = (() => {
+    switch (frequency) {
+      case 'Monthly': return 1
+      case 'Quarterly': return 3
+      case 'Half-yearly': return 6
+      case 'Annual': return 12
+      default: return 3
+    }
+  })()
+  const targetMonth = d.getMonth() + monthsToAdd
+  const targetYear = d.getFullYear() + Math.floor(targetMonth / 12)
+  const targetMon = targetMonth % 12
+  const lastDayOfTarget = new Date(targetYear, targetMon + 1, 0).getDate()
+  return new Date(targetYear, targetMon, Math.min(dayOfMonth, lastDayOfTarget))
+    .toISOString().split('T')[0]
+}
+
+// Helper: safely parse tags JSON, returning [] on corrupt data
+function safeParseTags(tagsStr) {
+  try { return JSON.parse(tagsStr || '[]') }
+  catch { return [] }
 }
 
 // Helper: mask PAN — store only last 4 chars visible
@@ -59,7 +72,7 @@ router.get('/clients', (req, res) => {
 
   const clients = db.prepare(sql).all(...params)
   // Parse tags from JSON string
-  res.json(clients.map(c => ({ ...c, tags: JSON.parse(c.tags || '[]') })))
+  res.json(clients.map(c => ({ ...c, tags: safeParseTags(c.tags) })))
 })
 
 // GET /api/clients/stats — dashboard stats
@@ -78,7 +91,7 @@ router.get('/clients/stats', (req, res) => {
   // Count tag frequency
   const tagCounts = {}
   for (const row of byTag) {
-    const tags = JSON.parse(row.tags || '[]')
+    const tags = safeParseTags(row.tags)
     for (const t of tags) {
       tagCounts[t] = (tagCounts[t] || 0) + 1
     }
@@ -114,7 +127,7 @@ router.get('/clients/:id', (req, res) => {
 
   res.json({
     ...client,
-    tags: JSON.parse(client.tags || '[]'),
+    tags: safeParseTags(client.tags),
     notes,
   })
 })
@@ -148,7 +161,7 @@ router.post('/clients', (req, res) => {
   )
 
   const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(result.lastInsertRowid)
-  res.status(201).json({ ...client, tags: JSON.parse(client.tags || '[]') })
+  res.status(201).json({ ...client, tags: safeParseTags(client.tags) })
 })
 
 // PUT /api/clients/:id — update client
@@ -162,7 +175,7 @@ router.put('/clients/:id', (req, res) => {
   const freq = review_frequency || existing.review_frequency
   // Only recalculate next_review_date if review_frequency actually changed
   const nextReview = (review_frequency && review_frequency !== existing.review_frequency)
-    ? calcNextReview(new Date().toISOString().split('T')[0], freq)
+    ? calcNextReview(new Date().toISOString().split('T')[0], freq, new Date(existing.onboarding_date).getDate())
     : existing.next_review_date
 
   db.prepare(`
@@ -180,14 +193,14 @@ router.put('/clients/:id', (req, res) => {
     risk_profile || existing.risk_profile,
     onboarding_date || existing.onboarding_date,
     referred_by ?? existing.referred_by,
-    JSON.stringify(tags || JSON.parse(existing.tags || '[]')),
+    JSON.stringify(tags || safeParseTags(existing.tags)),
     freq,
     nextReview,
     req.params.id
   )
 
   const updated = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id)
-  res.json({ ...updated, tags: JSON.parse(updated.tags || '[]') })
+  res.json({ ...updated, tags: safeParseTags(updated.tags) })
 })
 
 // DELETE /api/clients/:id — delete client
@@ -243,7 +256,8 @@ router.post('/clients/:id/complete-review', (req, res) => {
   const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id)
   if (!client) return res.status(404).json({ message: 'Client not found' })
 
-  const nextReview = calcNextReview(new Date().toISOString().split('T')[0], client.review_frequency)
+  const anchorDay = client.onboarding_date ? new Date(client.onboarding_date).getDate() : undefined
+  const nextReview = calcNextReview(new Date().toISOString().split('T')[0], client.review_frequency, anchorDay)
 
   db.prepare(
     'UPDATE clients SET next_review_date = ?, updated_at = datetime(\'now\') WHERE id = ?'
@@ -259,7 +273,7 @@ router.post('/clients/:id/complete-review', (req, res) => {
   ).run(req.params.id, req.params.id)
 
   const updated = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id)
-  res.json({ ...updated, tags: JSON.parse(updated.tags || '[]'), nextReview })
+  res.json({ ...updated, tags: safeParseTags(updated.tags), nextReview })
 })
 
 export default router

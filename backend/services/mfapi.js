@@ -1,4 +1,15 @@
 const MFAPI_BASE = 'https://api.mfapi.in/mf'
+const FETCH_TIMEOUT = 10000 // 10 seconds
+
+async function fetchWithTimeout(url, timeout = FETCH_TIMEOUT) {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeout)
+  try {
+    return await fetch(url, { signal: controller.signal })
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
 
 // In-memory cache with TTL
 const cache = new Map()
@@ -27,7 +38,7 @@ export async function fetchNavHistory(schemeCode) {
   const cached = getCached(cacheKey, CACHE_TTL)
   if (cached) return cached
 
-  const res = await fetch(`${MFAPI_BASE}/${schemeCode}`)
+  const res = await fetchWithTimeout(`${MFAPI_BASE}/${schemeCode}`)
   if (!res.ok) throw new Error(`MFapi error: ${res.status}`)
   const data = await res.json()
 
@@ -51,7 +62,7 @@ export async function fetchLatestNav(schemeCode) {
   const cached = getCached(cacheKey, LATEST_CACHE_TTL)
   if (cached) return cached
 
-  const res = await fetch(`${MFAPI_BASE}/${schemeCode}/latest`)
+  const res = await fetchWithTimeout(`${MFAPI_BASE}/${schemeCode}/latest`)
   if (!res.ok) throw new Error(`MFapi error: ${res.status}`)
   const data = await res.json()
   setCache(cacheKey, data)

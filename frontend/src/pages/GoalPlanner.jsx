@@ -70,6 +70,9 @@ export default function GoalPlanner() {
       setLoading(false)
     }
   }
+  // Note: loadGoals is intentionally not in the deps array above — the effect
+  // only needs to re-run when selectedClientId changes. loadGoals is also called
+  // directly by handleFormSave for manual refresh after goal creation/edit.
 
   const handleDelete = async (goalId) => {
     if (!window.confirm('Delete this goal?')) return

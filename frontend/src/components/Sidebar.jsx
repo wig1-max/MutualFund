@@ -8,6 +8,7 @@ import {
   Target,
   Calculator,
   Users,
+  Brain,
   ChevronLeft,
   ChevronRight,
   Menu,
@@ -16,6 +17,7 @@ import {
 
 const navItems = [
   { label: 'Dashboard', icon: LayoutDashboard, to: '/' },
+  { label: 'Fund Recommender', icon: Brain, to: '/scoring' },
   { label: 'Fund Intelligence', icon: TrendingUp, to: '/fund-intelligence' },
   { label: 'Portfolio X-Ray', icon: PieChart, to: '/portfolio-xray' },
   { label: 'Report Generator', icon: FileText, to: '/report-generator' },

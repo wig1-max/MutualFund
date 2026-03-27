@@ -198,25 +198,25 @@ export function getProfilingSummary() {
 
 // ---- Scoring & Recommendations ----
 
-export function runScoring(clientId) {
-  return request(`/scoring/${clientId}/run`, { method: 'POST' })
+export function runScoring(clientId, options = {}) {
+  return request(`/scoring/${clientId}/run`, { method: 'POST', body: JSON.stringify(options) })
 }
 
 export function getRecommendations(clientId) {
   return request(`/scoring/${clientId}/recommendations`)
 }
 
-export function enrichMetrics(schemeCode) {
+export function enrichFundMetrics(schemeCode) {
   return request(`/scoring/enrich-metrics/${schemeCode}`, { method: 'POST' })
 }
 
 // ---- CAS Import ----
 
-export function parseCas(clientId, casText) {
+export function parseCasText(clientId, casText) {
   return request(`/cas/${clientId}/parse`, { method: 'POST', body: JSON.stringify({ cas_text: casText }) })
 }
 
-export function importCas(clientId, folios, replaceExisting = false) {
+export function importCasHoldings(clientId, folios, replaceExisting = true) {
   return request(`/cas/${clientId}/import`, { method: 'POST', body: JSON.stringify({ folios, replace_existing: replaceExisting }) })
 }
 
@@ -224,6 +224,6 @@ export function getCasHoldings(clientId) {
   return request(`/cas/${clientId}`)
 }
 
-export function deleteCasHoldings(clientId) {
+export function clearCasHoldings(clientId) {
   return request(`/cas/${clientId}`, { method: 'DELETE' })
 }

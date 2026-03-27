@@ -87,3 +87,107 @@ CREATE TABLE IF NOT EXISTS nav_cache (
   PRIMARY KEY (scheme_code, date)
 );
 CREATE INDEX IF NOT EXISTS idx_nav_cache_code ON nav_cache(scheme_code);
+
+-- Client financial profiles for risk assessment and recommendations
+CREATE TABLE IF NOT EXISTS client_profiles (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_id INTEGER NOT NULL UNIQUE,
+  monthly_income REAL,
+  monthly_expenses REAL,
+  monthly_emi REAL,
+  income_type TEXT,
+  tax_slab TEXT,
+  age INTEGER,
+  dependents INTEGER,
+  has_home_loan INTEGER,
+  has_emergency_fund INTEGER,
+  emergency_fund_months REAL,
+  investment_horizon TEXT,
+  primary_goal TEXT,
+  elss_invested_this_year REAL,
+  existing_pf_balance REAL,
+  investable_surplus REAL,
+  risk_capacity_score REAL,
+  risk_label TEXT,
+  recommended_equity_pct REAL,
+  recommended_debt_pct REAL,
+  recommended_gold_pct REAL,
+  questionnaire_responses TEXT,
+  profile_complete INTEGER DEFAULT 0,
+  last_scored_at TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_client_profiles_client ON client_profiles(client_id);
+CREATE INDEX IF NOT EXISTS idx_client_profiles_risk ON client_profiles(risk_label);
+
+-- CAS holdings imported from CAMS CAS statements
+CREATE TABLE IF NOT EXISTS cas_holdings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_id INTEGER NOT NULL,
+  folio_number TEXT,
+  scheme_code TEXT,
+  scheme_name TEXT,
+  amc TEXT,
+  isin TEXT,
+  units REAL,
+  nav REAL,
+  current_value REAL,
+  cost_value REAL,
+  purchase_date TEXT,
+  source TEXT DEFAULT 'manual' CHECK(source IN ('manual', 'cas_upload', 'cas_api')),
+  fetched_at TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_cas_holdings_client ON cas_holdings(client_id);
+CREATE INDEX IF NOT EXISTS idx_cas_holdings_scheme ON cas_holdings(scheme_code);
+CREATE INDEX IF NOT EXISTS idx_cas_holdings_folio ON cas_holdings(folio_number);
+
+-- Fund recommendations from scoring engine
+CREATE TABLE IF NOT EXISTS fund_recommendations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_id INTEGER NOT NULL,
+  scheme_code TEXT,
+  scheme_name TEXT,
+  category TEXT,
+  amc TEXT,
+  composite_score REAL,
+  category_fit_score REAL,
+  risk_alignment_score REAL,
+  tax_efficiency_score REAL,
+  overlap_penalty REAL,
+  quality_score REAL,
+  recommended_sip REAL,
+  rank INTEGER,
+  reasons TEXT,
+  allocation_bucket TEXT,
+  generated_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_fund_recs_client ON fund_recommendations(client_id);
+CREATE INDEX IF NOT EXISTS idx_fund_recs_scheme ON fund_recommendations(scheme_code);
+CREATE INDEX IF NOT EXISTS idx_fund_recs_category ON fund_recommendations(category);
+CREATE INDEX IF NOT EXISTS idx_fund_recs_rank ON fund_recommendations(rank);
+
+-- Pre-computed NAV-derived fund metrics cache
+CREATE TABLE IF NOT EXISTS fund_metrics (
+  scheme_code TEXT PRIMARY KEY,
+  std_deviation REAL,
+  max_drawdown REAL,
+  sharpe_ratio REAL,
+  return_1y REAL,
+  return_3y REAL,
+  return_5y REAL,
+  category_avg_1y REAL,
+  category_avg_3y REAL,
+  risk_level TEXT,
+  metrics_date TEXT,
+  computed_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_fund_metrics_risk ON fund_metrics(risk_level);

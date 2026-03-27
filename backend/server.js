@@ -10,6 +10,9 @@ import backupRouter from './routes/backup.js'
 import goalsRouter from './routes/goals.js'
 import taxRouter from './routes/tax.js'
 import reportsRouter from './routes/reports.js'
+import profilingRouter from './routes/profiling.js'
+import scoringRouter from './routes/scoring.js'
+import casRouter from './routes/cas.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const app = express()
@@ -79,6 +82,9 @@ app.use('/api', backupRouter)
 app.use('/api', goalsRouter)
 app.use('/api', taxRouter)
 app.use('/api', reportsRouter)
+app.use('/api', profilingRouter)
+app.use('/api', scoringRouter)
+app.use('/api', casRouter)
 
 // ---- Static file serving (production) ----
 

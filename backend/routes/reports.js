@@ -264,11 +264,49 @@ async function gatherClientData(db, clientId, dataSources) {
   ).all(clientId)
   data.recentNotes = notes
 
+  // Client financial profile
+  const profile = db.prepare('SELECT * FROM client_profiles WHERE client_id = ?').get(clientId)
+  if (profile) {
+    data.clientProfile = {
+      age: profile.age,
+      income_type: profile.income_type,
+      monthly_income: profile.monthly_income,
+      monthly_expenses: profile.monthly_expenses,
+      monthly_emi: profile.monthly_emi,
+      tax_slab: profile.tax_slab,
+      investable_surplus: profile.investable_surplus,
+      risk_label: profile.risk_label,
+      risk_capacity_score: profile.risk_capacity_score,
+      investment_horizon: profile.investment_horizon,
+      primary_goal: profile.primary_goal,
+      recommended_equity_pct: profile.recommended_equity_pct,
+      recommended_debt_pct: profile.recommended_debt_pct,
+      recommended_gold_pct: profile.recommended_gold_pct,
+      elss_invested_this_year: profile.elss_invested_this_year,
+      existing_pf_balance: profile.existing_pf_balance,
+    }
+  }
+
+  // Top fund recommendations
+  const recs = db.prepare(
+    'SELECT * FROM fund_recommendations WHERE client_id = ? ORDER BY rank ASC LIMIT 5'
+  ).all(clientId)
+  if (recs.length > 0) {
+    data.topRecommendations = recs.map(r => ({
+      scheme_name: r.scheme_name,
+      allocation_bucket: r.allocation_bucket,
+      composite_score: r.composite_score,
+      recommended_sip: r.recommended_sip,
+      reasons: (() => { try { return JSON.parse(r.reasons) } catch { return [] } })(),
+    }))
+  }
+
   return data
 }
 
 function buildPrompt(client, reportType, data, customInstructions) {
   const today = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+  const fmtRs = (v) => Number(v || 0).toLocaleString('en-IN')
 
   let prompt = `You are a professional mutual fund advisor writing a report for a client. Generate a well-structured, professional investment review report.
 
@@ -289,6 +327,32 @@ function buildPrompt(client, reportType, data, customInstructions) {
 - Do NOT use any HTML tags — only markdown formatting
 
 `
+
+  if (data.clientProfile) {
+    const p = data.clientProfile
+    const elssLimit = 150000
+    const elssHeadroom = Math.max(0, elssLimit - (p.elss_invested_this_year || 0))
+    prompt += `**Client Financial Profile:**
+- Age: ${p.age} | Income Type: ${p.income_type}
+- Monthly Income: Rs ${fmtRs(p.monthly_income)} | Expenses: Rs ${fmtRs(p.monthly_expenses)} | EMIs: Rs ${fmtRs(p.monthly_emi)}
+- Investable Surplus: Rs ${fmtRs(p.investable_surplus)}
+- Tax Slab: ${p.tax_slab}
+- Investment Horizon: ${p.investment_horizon} years
+- Risk Profile: ${p.risk_label} (score: ${p.risk_capacity_score}/100)
+- Primary Goal: ${p.primary_goal || 'Not specified'}
+- Recommended Allocation: Equity ${p.recommended_equity_pct}% / Debt ${p.recommended_debt_pct}% / Gold ${p.recommended_gold_pct}%
+- ELSS Invested This Year: Rs ${fmtRs(p.elss_invested_this_year)} (headroom: Rs ${fmtRs(elssHeadroom)} of Rs 1,50,000 limit)
+- Existing PF Balance: Rs ${fmtRs(p.existing_pf_balance)}
+
+`
+  }
+
+  if (data.topRecommendations && data.topRecommendations.length > 0) {
+    prompt += `**AI-Generated Fund Recommendations:**
+${data.topRecommendations.map((r, i) => `${i + 1}. ${r.scheme_name} | Bucket: ${r.allocation_bucket} | Score: ${r.composite_score}/80 | Recommended SIP: Rs ${fmtRs(r.recommended_sip)} | Reasons: ${Array.isArray(r.reasons) ? r.reasons.join('; ') : r.reasons || 'N/A'}`).join('\n')}
+
+`
+  }
 
   if (data.portfolioSummary) {
     prompt += `\n**Portfolio Data:**

@@ -3,6 +3,31 @@ import {
   getCategoryRiskLevel, riskLevelToScore, getAllocationBucket,
   isELSS, isEquityFund, isPassiveFund,
 } from '../utils/fundClassification.js'
+import { sortinoRatio, calmarRatio, jensensAlpha,
+         fundAgeYears } from './calculations.js'
+import { runGoalSurvival } from './monteCarloEngine.js'
+import { fetchNavHistory } from './mfapi.js'
+
+async function passesHardFilters(fund, metricsMap, db) {
+  const m = metricsMap[fund.scheme_code]
+
+  // Filter 1: Fund must exist in metrics or have NAV data
+  if (!m) return true  // no metrics yet, pass through (scored as unknown)
+
+  // Filter 2: Sharpe ratio minimum
+  if (m.sharpe_ratio !== null && m.sharpe_ratio < 0.3) return false
+
+  // Filter 3: Jensen's alpha floor — only eliminate clear underperformers
+  if (m.jensen_alpha !== null && m.jensen_alpha < -4) return false
+
+  // Filter 4: Max drawdown ceiling
+  if (m.max_drawdown !== null && m.max_drawdown > 60) return false
+
+  // Filter 5: AUM minimum from funds table
+  // Skip this filter if aum not in funds table (add later when scraped)
+
+  return true
+}
 
 /**
  * Score and rank funds for a client based on their profile.
@@ -87,19 +112,59 @@ export async function scoreClientFunds(clientId) {
     }
 
     // 5. Quality Score (/10) — from pre-computed metrics
-    let qualityScore = 5 // default when no metrics
+    let qualityScore = 5  // default for no metrics
+    const qualityReasons = []
     const metrics = allMetrics[fund.scheme_code]
+
     if (metrics) {
-      qualityScore = 0
-      if (metrics.sharpe_ratio > 1) qualityScore += 4
-      else if (metrics.sharpe_ratio > 0.5) qualityScore += 2
-      if (metrics.max_drawdown < 0.15) qualityScore += 3
-      else if (metrics.max_drawdown < 0.25) qualityScore += 1.5
-      if (metrics.return_3y > 12) qualityScore += 3
-      else if (metrics.return_3y > 8) qualityScore += 1.5
-      qualityScore = Math.min(10, qualityScore)
-      if (qualityScore >= 7) reasons.push('Strong risk-adjusted returns')
+      let rawScore = 0
+      let components = 0
+
+      // Sortino component (0-4 points) — primary quality signal
+      if (metrics.sortino_ratio !== null && metrics.sortino_ratio !== undefined) {
+        const sortino = metrics.sortino_ratio
+        if (sortino > 2) { rawScore += 4; qualityReasons.push('Excellent downside protection (Sortino > 2)') }
+        else if (sortino > 1) { rawScore += 3; qualityReasons.push('Good risk-adjusted returns (Sortino > 1)') }
+        else if (sortino > 0.5) { rawScore += 2 }
+        else if (sortino > 0) { rawScore += 1 }
+        else { rawScore += 0; qualityReasons.push('Poor downside protection') }
+        components++
+      }
+
+      // Calmar component (0-3 points) — crash recovery signal
+      if (metrics.calmar_ratio !== null && metrics.calmar_ratio !== undefined) {
+        const calmar = metrics.calmar_ratio
+        if (calmar > 1.5) { rawScore += 3; qualityReasons.push('Strong crash recovery (Calmar > 1.5)') }
+        else if (calmar > 0.8) { rawScore += 2 }
+        else if (calmar > 0.4) { rawScore += 1 }
+        else { rawScore += 0; qualityReasons.push('High drawdown relative to returns') }
+        components++
+      }
+
+      // Jensen Alpha component (0-3 points) — manager skill signal
+      if (metrics.jensen_alpha !== null && metrics.jensen_alpha !== undefined) {
+        const alpha = metrics.jensen_alpha
+        if (alpha > 3) { rawScore += 3; qualityReasons.push(`Manager adds ${alpha.toFixed(1)}% alpha vs benchmark`) }
+        else if (alpha > 1) { rawScore += 2 }
+        else if (alpha > 0) { rawScore += 1 }
+        else if (alpha < -2) { rawScore -= 1; qualityReasons.push('Fund underperforms benchmark after risk adjustment') }
+        components++
+      }
+
+      // Peer outperformance (0-2 points)
+      if (metrics.return_3y !== null && metrics.category_avg_3y !== null) {
+        const outperformance = metrics.return_3y - metrics.category_avg_3y
+        if (outperformance > 3) { rawScore += 2; qualityReasons.push(`Outperforms peers by ${outperformance.toFixed(1)}% (3Y)`) }
+        else if (outperformance > 1) { rawScore += 1 }
+        else if (outperformance < -3) { rawScore -= 1 }
+        components++
+      }
+
+      qualityScore = components > 0 ? Math.min(10, Math.max(0, rawScore)) : 5
     }
+
+    // Add quality reasons to main reasons array
+    reasons.push(...qualityReasons)
 
     const compositeScore = Math.round((categoryFit + riskAlignment + taxEfficiency + overlapPenalty + qualityScore) * 100) / 100
 
@@ -164,9 +229,34 @@ export async function scoreClientFunds(clientId) {
 
   insertRecs(top)
 
+  // Run Monte Carlo for top recommendation as portfolio proxy
+  let survivalAnalysis = null
+  try {
+    if (top.length > 0) {
+      const avgReturn = top.slice(0, 5)
+        .reduce((sum, r) => sum + (allMetrics[r.scheme_code]?.return_3y || 10), 0) /
+        Math.min(5, top.length)
+
+      survivalAnalysis = runGoalSurvival({
+        monthlyInvestment: profile.investable_surplus || 0,
+        currentSavings: profile.existing_pf_balance || 0,
+        targetAmount: 10000000,  // fallback ₹1 Cr if no goal set
+        horizonYears: profile.investment_horizon || 10,
+        portfolioMeanReturn: (avgReturn / 100),
+        portfolioStdDev: 0.15,  // conservative default
+        inflationRate: 0.06,
+        numSimulations: 1000,
+        stressScenarios: true,
+      })
+    }
+  } catch (e) {
+    console.warn('Monte Carlo failed, skipping:', e.message)
+  }
+
   return {
     client_id: clientId,
     recommendations_count: top.length,
+    survival_analysis: survivalAnalysis,
     generated_at: now,
   }
 }
@@ -181,12 +271,14 @@ export function storeFundMetrics(metrics) {
       scheme_code, std_deviation, max_drawdown, sharpe_ratio,
       return_1y, return_3y, return_5y,
       category_avg_1y, category_avg_3y,
-      risk_level, metrics_date, computed_at
+      risk_level, metrics_date, computed_at,
+      jensen_alpha, sortino_ratio, calmar_ratio
     ) VALUES (
       @scheme_code, @std_deviation, @max_drawdown, @sharpe_ratio,
       @return_1y, @return_3y, @return_5y,
       @category_avg_1y, @category_avg_3y,
-      @risk_level, @metrics_date, datetime('now')
+      @risk_level, @metrics_date, datetime('now'),
+      @jensen_alpha, @sortino_ratio, @calmar_ratio
     )
   `).run({
     scheme_code: metrics.scheme_code,
@@ -200,5 +292,8 @@ export function storeFundMetrics(metrics) {
     category_avg_3y: metrics.category_avg_3y ?? null,
     risk_level: metrics.risk_level ?? null,
     metrics_date: metrics.metrics_date ?? null,
+    jensen_alpha: metrics.jensen_alpha ?? null,
+    sortino_ratio: metrics.sortino_ratio ?? null,
+    calmar_ratio: metrics.calmar_ratio ?? null,
   })
 }

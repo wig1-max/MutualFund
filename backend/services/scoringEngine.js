@@ -53,7 +53,7 @@ function buildAllocationTargets(profile) {
         bucket: 'equity',
         amfi_keyword: 'ELSS',
         label: 'ELSS (Tax Saving)',
-        weight: equityPct * 0.15,
+        weight: equityPct * 0.08,
         priority: 1,
       })
     }
@@ -115,6 +115,26 @@ function buildAllocationTargets(profile) {
       weight: equityPct * 0.10,
       priority: 3,
     })
+
+    // Focused Fund — concentrated portfolio
+    targets.push({
+      bucket: 'equity',
+      amfi_keyword: 'Focused Fund',
+      label: 'Focused Fund',
+      weight: equityPct * 0.08,
+      priority: 3,
+    })
+
+    // Value Fund — contrarian style, moderate+ risk
+    if (riskScore >= 55) {
+      targets.push({
+        bucket: 'equity',
+        amfi_keyword: 'Value Fund',
+        label: 'Value Fund',
+        weight: equityPct * 0.08,
+        priority: 3,
+      })
+    }
   }
 
   // ── DEBT TARGETS ─────────────────────────────────────────
@@ -176,29 +196,64 @@ function buildAllocationTargets(profile) {
 }
 
 function deduplicateByCategory(scored, limit) {
-  const bucketCounts = {}
-  const MAX_PER_BUCKET = 3
-  const seenBaseFunds = new Set()
+  // Track counts at two levels:
+  // 1. Per allocation_bucket label (e.g. 'Large Cap', 'Mid Cap', 'ELSS')
+  //    — max 1 for ELSS (only one fund needed for 80C)
+  //    — max 2 for all other equity labels
+  //    — max 1 for debt labels
+  //    — max 1 for gold
+  // 2. Per base fund identity (AMC + stripped name)
+
+  const labelCounts = {}
+  const seenBaseKeys = new Set()
   const result = []
 
-  function getBaseFundKey(fund) {
+  const MAX_PER_LABEL = {
+    'ELSS (Tax Saving)': 1,
+    'Large Cap': 2,
+    'Flexi Cap': 2,
+    'Multi Cap': 1,
+    'Mid Cap': 2,
+    'Small Cap': 2,
+    'Index Fund': 1,
+    'Focused Fund': 1,
+    'Value Fund': 1,
+    'Corporate Bond': 1,
+    'Banking & PSU Debt': 1,
+    'Short Duration': 1,
+    'Liquid Fund': 1,
+    'Gold Fund': 1,
+    'Balanced Hybrid': 1,
+    'Aggressive Hybrid': 1,
+    'default': 1,
+  }
+
+  function getMaxForLabel(label) {
+    return MAX_PER_LABEL[label] ?? MAX_PER_LABEL['default']
+  }
+
+  function getBaseKey(fund) {
     const name = (fund.scheme_name || '')
       .toLowerCase()
-      .replace(/\s*-\s*(regular|direct|growth|idcw|dividend|monthly|quarterly|annual|retail|institutional|plan|option|payout|reinvestment)\b.*/gi, '')
+      .replace(/\s*[-\u2013]\s*(regular|growth|plan|option|series|annual|monthly|quarterly|weekly|fortnightly)\b.*/gi, '')
+      .replace(/\s+/g, ' ')
       .trim()
-    return `${fund.amc || ''}__${name}`
+    return `${(fund.amc || '').toLowerCase()}__${name}`
   }
 
   for (const fund of scored) {
-    const bucket = fund.allocation_bucket || 'other'
-    const baseKey = getBaseFundKey(fund)
+    const label = fund.allocation_bucket || 'default'
+    const baseKey = getBaseKey(fund)
 
-    if (seenBaseFunds.has(baseKey)) continue
+    // Skip duplicate base funds
+    if (seenBaseKeys.has(baseKey)) continue
 
-    bucketCounts[bucket] = (bucketCounts[bucket] || 0) + 1
-    if (bucketCounts[bucket] > MAX_PER_BUCKET) continue
+    // Skip if this label is at its cap
+    const currentCount = labelCounts[label] || 0
+    if (currentCount >= getMaxForLabel(label)) continue
 
-    seenBaseFunds.add(baseKey)
+    seenBaseKeys.add(baseKey)
+    labelCounts[label] = currentCount + 1
     result.push({ ...fund, rank: result.length + 1 })
 
     if (result.length >= limit) break
@@ -246,7 +301,7 @@ function assignSipAmounts(recommendations, profile) {
     bucketFundCounts[bucket] = (bucketFundCounts[bucket] || 0) + 1
   }
 
-  return recommendations.map(r => {
+  const withSips = recommendations.map(r => {
     const bucket = getBucketType(r.allocation_bucket)
     const fundsInBucket = bucketFundCounts[bucket] || 1
     const bucketBudget = bucketBudgets[bucket] || (surplus / recommendations.length)
@@ -254,6 +309,21 @@ function assignSipAmounts(recommendations, profile) {
     const roundedSip = Math.max(500, Math.round(rawSip / 500) * 500)
     return { ...r, recommended_sip: roundedSip }
   })
+
+  // Final safety: if total exceeds surplus, scale each SIP down
+  const totalSip = withSips.reduce((s, r) => s + r.recommended_sip, 0)
+  if (totalSip > surplus * 1.05) {
+    const scaleFactor = surplus / totalSip
+    return withSips.map(r => ({
+      ...r,
+      recommended_sip: Math.max(
+        500,
+        Math.round((r.recommended_sip * scaleFactor) / 500) * 500
+      )
+    }))
+  }
+
+  return withSips
 }
 
 /**
@@ -292,6 +362,10 @@ export async function scoreClientFunds(clientId) {
       AND LOWER(scheme_name) NOT LIKE '%institutional%'
       AND LOWER(scheme_name) NOT LIKE '%segregated%'
       AND LOWER(scheme_name) NOT LIKE '%fof%'
+      AND LOWER(scheme_name) NOT LIKE '%fund of fund%'
+      AND LOWER(scheme_category) NOT LIKE '%arbitrage%'
+      AND LOWER(scheme_category) NOT LIKE '%fof overseas%'
+      AND LOWER(scheme_category) NOT LIKE '%fof domestic%'
       AND (
         LOWER(scheme_name) LIKE '%regular%'
         OR LOWER(scheme_name) LIKE '%growth%'
@@ -440,6 +514,16 @@ export async function scoreClientFunds(clientId) {
 
   // Sort by composite score desc, deduplicate, and assign SIP amounts
   scored.sort((a, b) => b.composite_score - a.composite_score)
+
+  // Debug: show top 15 scoring funds before deduplication
+  console.log('\n=== TOP 15 SCORED FUNDS (pre-dedup) ===')
+  scored.slice(0, 15).forEach((f, i) => {
+    console.log(
+      `${i+1}. [${f.composite_score}] ${(f.scheme_name||'').substring(0,45).padEnd(45)} | ${(f.scheme_category||'').substring(0,30).padEnd(30)} | bucket: ${f.allocation_bucket}`
+    )
+  })
+  console.log('=== END DEBUG ===\n')
+
   const ranked = deduplicateByCategory(scored, 10)
 
   // BUG FIX 5: Minimum fund count guardrail

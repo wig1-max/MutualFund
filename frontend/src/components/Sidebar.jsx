@@ -40,7 +40,7 @@ export default function Sidebar() {
         {!collapsed && (
           <div className="overflow-hidden">
             <h1 className="text-lg font-bold tracking-wide text-[#D4A847]">TEJOVA</h1>
-            <p className="text-[11px] text-gray-400 leading-tight">MFD Ops Toolkit</p>
+            <p className="text-[11px] text-gray-400 leading-tight">Intelligence Platform</p>
           </div>
         )}
         {/* Mobile close button */}
@@ -107,16 +107,18 @@ export default function Sidebar() {
 
       {/* Mobile sidebar */}
       <aside
-        className={`lg:hidden fixed inset-y-0 left-0 z-50 flex flex-col w-[260px] bg-[#1B2A4A] text-white transform transition-transform duration-300 ${
+        className={`lg:hidden fixed inset-y-0 left-0 z-50 flex flex-col w-[260px] text-white transform transition-transform duration-300 ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
+        style={{ background: 'linear-gradient(180deg, #1B2A4A 0%, #0d1a30 100%)' }}
       >
         {sidebarContent}
       </aside>
 
       {/* Desktop sidebar */}
       <aside
-        className="hidden lg:flex flex-col h-screen bg-[#1B2A4A] text-white transition-all duration-300 shrink-0"
+        className="hidden lg:flex flex-col h-screen text-white transition-all duration-300 shrink-0"
+        style={{ background: 'linear-gradient(180deg, #1B2A4A 0%, #0d1a30 100%)' }}
         style={{ width: collapsed ? 72 : 260 }}
       >
         {sidebarContent}

@@ -80,8 +80,8 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex items-start justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-[#1B2A4A]">Welcome back, Aryan</h1>
-          <p className="text-gray-500 mt-1">Here is your practice overview for today.</p>
+          <h1 className="text-2xl font-bold text-[#1B2A4A]">Tejova Intelligence Platform v2.0</h1>
+          <p className="text-gray-500 mt-1">India's first AI-powered mutual fund intelligence engine.</p>
         </div>
         <button
           onClick={downloadBackup}
@@ -89,6 +89,11 @@ export default function Dashboard() {
         >
           <Download size={16} /> Backup DB
         </button>
+      </div>
+
+      {/* Gold Banner */}
+      <div className="bg-[#D4A847] text-[#1B2A4A] text-xs font-semibold py-2 px-4 rounded-xl text-center mb-8">
+        ⚡ Intelligence Engine Active — Scoring 15,000+ funds against every client profile
       </div>
 
       {/* Stat Cards */}

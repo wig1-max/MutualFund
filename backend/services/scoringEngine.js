@@ -269,31 +269,21 @@ export function storeFundMetrics(metrics) {
   db.prepare(`
     INSERT OR REPLACE INTO fund_metrics (
       scheme_code, std_deviation, max_drawdown, sharpe_ratio,
-      return_1y, return_3y, return_5y,
-      category_avg_1y, category_avg_3y,
-      risk_level, metrics_date, computed_at,
-      jensen_alpha, sortino_ratio, calmar_ratio
-    ) VALUES (
-      @scheme_code, @std_deviation, @max_drawdown, @sharpe_ratio,
-      @return_1y, @return_3y, @return_5y,
-      @category_avg_1y, @category_avg_3y,
-      @risk_level, @metrics_date, datetime('now'),
-      @jensen_alpha, @sortino_ratio, @calmar_ratio
-    )
-  `).run({
-    scheme_code: metrics.scheme_code,
-    std_deviation: metrics.std_deviation ?? null,
-    max_drawdown: metrics.max_drawdown ?? null,
-    sharpe_ratio: metrics.sharpe_ratio ?? null,
-    return_1y: metrics.return_1y ?? null,
-    return_3y: metrics.return_3y ?? null,
-    return_5y: metrics.return_5y ?? null,
-    category_avg_1y: metrics.category_avg_1y ?? null,
-    category_avg_3y: metrics.category_avg_3y ?? null,
-    risk_level: metrics.risk_level ?? null,
-    metrics_date: metrics.metrics_date ?? null,
-    jensen_alpha: metrics.jensen_alpha ?? null,
-    sortino_ratio: metrics.sortino_ratio ?? null,
-    calmar_ratio: metrics.calmar_ratio ?? null,
-  })
+      sortino_ratio, calmar_ratio, jensen_alpha,
+      return_1y, return_3y, return_5y, risk_level,
+      metrics_date, computed_at
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,date('now'),datetime('now'))
+  `).run(
+    metrics.scheme_code,
+    metrics.standardDeviation ?? metrics.std_deviation ?? null,
+    metrics.maxDrawdown ?? metrics.max_drawdown ?? null,
+    metrics.sharpeRatio ?? metrics.sharpe_ratio ?? null,
+    metrics.sortinoRatio ?? metrics.sortino_ratio ?? null,
+    metrics.calmarRatio ?? metrics.calmar_ratio ?? null,
+    metrics.jensenAlpha ?? metrics.jensen_alpha ?? null,
+    metrics.return1y ?? metrics.return_1y ?? null,
+    metrics.return3y ?? metrics.return_3y ?? null,
+    metrics.return5y ?? metrics.return_5y ?? null,
+    metrics.riskLevel ?? metrics.risk_level ?? null,
+  )
 }

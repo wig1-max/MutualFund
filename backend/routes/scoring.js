@@ -43,9 +43,17 @@ router.get('/scoring/:clientId/recommendations', (req, res) => {
     }
   }
 
-  const generated_at = recommendations.length > 0 ? recommendations[0].generated_at : null
-
-  res.json({ client, profile: profile || null, recommendations, generated_at })
+  res.json({
+    client,
+    profile: profile || null,
+    recommendations,
+    survival_analysis: null,  // populated when scoring is re-run
+    generated_at: recommendations[0]?.generated_at || null,
+    metadata: {
+      scoring_version: '2.0',
+      metrics_included: ['sortino', 'calmar', 'jensen_alpha', 'monte_carlo'],
+    },
+  })
 })
 
 // POST /api/scoring/enrich-metrics/:schemeCode — compute and store fund metrics

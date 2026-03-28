@@ -30,50 +30,146 @@ async function passesHardFilters(fund, metricsMap, db) {
 }
 
 function buildAllocationTargets(profile) {
+  const equityPct = (profile.recommended_equity_pct || 60) / 100
+  const debtPct   = (profile.recommended_debt_pct   || 30) / 100
+  const goldPct   = (profile.recommended_gold_pct   || 10) / 100
+  const taxSlab   = profile.tax_slab   || 20
+  const horizon   = profile.investment_horizon || 10
+  const riskScore = profile.risk_capacity_score || 50
+  const elssInvested = profile.elss_invested_this_year || 0
+  const elssHeadroom = Math.max(0, 150000 - elssInvested)
+
   const targets = []
-  const eq = (profile.recommended_equity_pct || 60) / 100
-  const dt = (profile.recommended_debt_pct || 30) / 100
-  const gd = (profile.recommended_gold_pct || 10) / 100
-  const horizon = Number(profile.investment_horizon) || 10
-  const taxSlab = parseInt(profile.tax_slab) || 30
-  const elssHeadroom = 150000 - (profile.elss_invested_this_year || 0)
 
-  // ELSS
-  if (taxSlab >= 30 && elssHeadroom > 0) {
-    targets.push({ bucket: 'equity', category_keyword: 'ELSS', label: 'ELSS (Tax Saving)', weight: eq * 0.20, priority: 1 })
+  // ── EQUITY TARGETS ──────────────────────────────────────
+  // These keywords must match AMFI scheme_category strings exactly.
+  // AMFI format: "Equity Scheme - Large Cap Fund"
+  // We match on the part after the dash.
+
+  if (equityPct > 0) {
+    // ELSS — only if meaningful tax benefit exists
+    if (taxSlab >= 30 && elssHeadroom > 0) {
+      targets.push({
+        bucket: 'equity',
+        amfi_keyword: 'ELSS',
+        label: 'ELSS (Tax Saving)',
+        weight: equityPct * 0.15,
+        priority: 1,
+      })
+    }
+
+    // Large Cap — always for equity
+    targets.push({
+      bucket: 'equity',
+      amfi_keyword: 'Large Cap Fund',
+      label: 'Large Cap',
+      weight: equityPct * (horizon >= 7 ? 0.25 : 0.40),
+      priority: 2,
+    })
+
+    // Flexi Cap — always for equity
+    targets.push({
+      bucket: 'equity',
+      amfi_keyword: 'Flexi Cap Fund',
+      label: 'Flexi Cap',
+      weight: equityPct * 0.25,
+      priority: 2,
+    })
+
+    // Mid Cap — moderate+ risk and 7+ year horizon
+    if (riskScore >= 55 && horizon >= 7) {
+      targets.push({
+        bucket: 'equity',
+        amfi_keyword: 'Mid Cap Fund',
+        label: 'Mid Cap',
+        weight: equityPct * 0.20,
+        priority: 3,
+      })
+    }
+
+    // Small Cap — aggressive only, 10+ year horizon
+    if (riskScore >= 75 && horizon >= 10) {
+      targets.push({
+        bucket: 'equity',
+        amfi_keyword: 'Small Cap Fund',
+        label: 'Small Cap',
+        weight: equityPct * 0.15,
+        priority: 4,
+      })
+    }
+
+    // Index Fund fallback — always include
+    targets.push({
+      bucket: 'equity',
+      amfi_keyword: 'Index Funds',
+      label: 'Index Fund',
+      weight: equityPct * 0.10,
+      priority: 3,
+    })
+
+    // Multi Cap — good diversifier
+    targets.push({
+      bucket: 'equity',
+      amfi_keyword: 'Multi Cap Fund',
+      label: 'Multi Cap',
+      weight: equityPct * 0.10,
+      priority: 3,
+    })
   }
 
-  // Large cap
-  if (horizon >= 5) {
-    targets.push({ bucket: 'equity', category_keyword: 'Large Cap Fund', label: 'Large Cap', weight: eq * 0.25, priority: 2 })
+  // ── DEBT TARGETS ─────────────────────────────────────────
+  if (debtPct > 0) {
+    if (horizon < 3) {
+      // Short horizon — prioritise liquid and short duration
+      targets.push({
+        bucket: 'debt',
+        amfi_keyword: 'Liquid Fund',
+        label: 'Liquid Fund',
+        weight: debtPct * 0.50,
+        priority: 1,
+      })
+      targets.push({
+        bucket: 'debt',
+        amfi_keyword: 'Short Duration Fund',
+        label: 'Short Duration',
+        weight: debtPct * 0.50,
+        priority: 1,
+      })
+    } else {
+      // Medium/long horizon — corporate bond + banking PSU
+      targets.push({
+        bucket: 'debt',
+        amfi_keyword: 'Corporate Bond Fund',
+        label: 'Corporate Bond',
+        weight: debtPct * 0.50,
+        priority: 2,
+      })
+      targets.push({
+        bucket: 'debt',
+        amfi_keyword: 'Banking and PSU Fund',
+        label: 'Banking & PSU Debt',
+        weight: debtPct * 0.30,
+        priority: 2,
+      })
+      targets.push({
+        bucket: 'debt',
+        amfi_keyword: 'Short Duration Fund',
+        label: 'Short Duration',
+        weight: debtPct * 0.20,
+        priority: 3,
+      })
+    }
   }
 
-  // Flexi cap
-  targets.push({ bucket: 'equity', category_keyword: 'Flexi Cap Fund', label: 'Flexi Cap', weight: eq * 0.25, priority: 2 })
-
-  // Mid cap
-  if (profile.risk_capacity_score >= 55 && horizon >= 7) {
-    targets.push({ bucket: 'equity', category_keyword: 'Mid Cap Fund', label: 'Mid Cap', weight: eq * 0.20, priority: 3 })
-  }
-
-  // Small cap
-  if (profile.risk_capacity_score >= 75 && horizon >= 10) {
-    targets.push({ bucket: 'equity', category_keyword: 'Small Cap Fund', label: 'Small Cap', weight: eq * 0.15, priority: 4 })
-  }
-
-  // Index fund
-  targets.push({ bucket: 'equity', category_keyword: 'Index Funds', label: 'Index Fund', weight: eq * 0.15, priority: 3 })
-
-  // Debt targets
-  if (dt > 0) {
-    targets.push({ bucket: 'debt', category_keyword: 'Short Duration', label: 'Short Duration', weight: dt * 0.40, priority: 2 })
-    targets.push({ bucket: 'debt', category_keyword: 'Corporate Bond', label: 'Corporate Bond', weight: dt * 0.30, priority: 2 })
-    targets.push({ bucket: 'debt', category_keyword: 'Banking and PSU', label: 'Banking & PSU', weight: dt * 0.30, priority: 3 })
-  }
-
-  // Gold
-  if (gd > 0) {
-    targets.push({ bucket: 'gold', category_keyword: 'Gold', label: 'Gold', weight: gd, priority: 3 })
+  // ── GOLD TARGET ───────────────────────────────────────────
+  if (goldPct > 0) {
+    targets.push({
+      bucket: 'gold',
+      amfi_keyword: 'Gold',
+      label: 'Gold Fund',
+      weight: goldPct,
+      priority: 3,
+    })
   }
 
   return targets
@@ -182,17 +278,29 @@ export async function scoreClientFunds(clientId) {
 
   // Pull candidate funds — Regular Growth plans only (MFD-appropriate)
   const candidates = db.prepare(`
-    SELECT scheme_code, scheme_name, scheme_category, amc, nav FROM funds
+    SELECT scheme_code, scheme_name, scheme_category,
+           amc, scheme_type, nav
+    FROM funds
     WHERE scheme_category != ''
       AND scheme_category IS NOT NULL
       AND nav > 0
       AND LOWER(scheme_name) NOT LIKE '%direct%'
-      AND LOWER(scheme_name) NOT LIKE '% idcw%'
+      AND LOWER(scheme_name) NOT LIKE '%idcw%'
       AND LOWER(scheme_name) NOT LIKE '%dividend%'
-      AND LOWER(scheme_name) NOT LIKE '%monthly idcw%'
-      AND LOWER(scheme_name) NOT LIKE '%quarterly idcw%'
-      AND LOWER(scheme_name) NOT LIKE '%-growth option%'
-    LIMIT 500
+      AND LOWER(scheme_name) NOT LIKE '%bonus%'
+      AND LOWER(scheme_name) NOT LIKE '%retail plan%'
+      AND LOWER(scheme_name) NOT LIKE '%institutional%'
+      AND LOWER(scheme_name) NOT LIKE '%segregated%'
+      AND LOWER(scheme_name) NOT LIKE '%fof%'
+      AND (
+        LOWER(scheme_name) LIKE '%regular%'
+        OR LOWER(scheme_name) LIKE '%growth%'
+        OR (
+          LOWER(scheme_name) NOT LIKE '%regular%'
+          AND LOWER(scheme_name) NOT LIKE '%direct%'
+        )
+      )
+    ORDER BY scheme_name
   `).all()
 
   if (candidates.length === 0) {
@@ -218,7 +326,7 @@ export async function scoreClientFunds(clientId) {
     let categoryFit = 0
     const categoryLower = category.toLowerCase()
     const matchingTarget = allocationTargets.find(t => {
-      const keyword = t.category_keyword.toLowerCase()
+      const keyword = t.amfi_keyword.toLowerCase()
       return categoryLower.includes(keyword) || keyword.includes(categoryLower.split(' ')[0].toLowerCase())
     })
     if (matchingTarget) {

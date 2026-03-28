@@ -313,3 +313,163 @@ export function sipBacktest(navData, monthlySip, startDate, endDate = null) {
       : timeline,
   }
 }
+
+// Sortino ratio — like Sharpe but penalises only downside volatility
+export function sortinoRatio(navData, riskFreeRate = 6, periodYears = 3) {
+  if (!navData || navData.length === 0) return null
+
+  const latest = navData[navData.length - 1]
+  const cutoff = new Date(latest.date)
+  cutoff.setFullYear(cutoff.getFullYear() - periodYears)
+  const cutoffStr = cutoff.toISOString().split('T')[0]
+
+  const filtered = navData.filter(d => d.date >= cutoffStr)
+  if (filtered.length < 20) return null
+
+  const dailyReturns = []
+  for (let i = 1; i < filtered.length; i++) {
+    dailyReturns.push((filtered[i].nav - filtered[i - 1].nav) / filtered[i - 1].nav)
+  }
+
+  const downsideReturns = dailyReturns.filter(r => r < 0)
+  if (downsideReturns.length < 5) return null
+
+  const downsideVariance = downsideReturns.reduce((s, r) => s + r * r, 0) / downsideReturns.length
+  const downsideDev = Math.sqrt(downsideVariance)
+  if (downsideDev === 0) return null
+
+  const annualisedDev = downsideDev * Math.sqrt(252)
+
+  const returns = calculateReturns(navData)
+  const key = periodYears >= 5 ? '5Y' : periodYears >= 3 ? '3Y' : '1Y'
+  const annualisedReturn = returns[key]?.return
+  if (annualisedReturn == null) return null
+
+  return (annualisedReturn - riskFreeRate) / (annualisedDev * 100)
+}
+
+// Calmar ratio — annualised return / max drawdown
+export function calmarRatio(navData, periodYears = 3) {
+  const returns = calculateReturns(navData)
+  const key = periodYears >= 5 ? '5Y' : periodYears >= 3 ? '3Y' : '1Y'
+  const annualisedReturn = returns[key]?.return
+  const md = maxDrawdown(navData, periodYears)
+
+  if (annualisedReturn == null || md == null || md === 0) return null
+  return annualisedReturn / md
+}
+
+// Jensen's alpha — excess return above CAPM prediction
+export function jensensAlpha(navData, benchmarkNavData, riskFreeRate = 6, periodYears = 3) {
+  if (!navData || !benchmarkNavData || navData.length === 0 || benchmarkNavData.length === 0) return null
+
+  const latest = navData[navData.length - 1]
+  const cutoff = new Date(latest.date)
+  cutoff.setFullYear(cutoff.getFullYear() - periodYears)
+  const cutoffStr = cutoff.toISOString().split('T')[0]
+
+  const filtered = navData.filter(d => d.date >= cutoffStr)
+  if (filtered.length < 20) return null
+
+  // Match fund dates to benchmark
+  const matched = []
+  for (let i = 1; i < filtered.length; i++) {
+    const prevBench = getNavOnDate(benchmarkNavData, filtered[i - 1].date)
+    const currBench = getNavOnDate(benchmarkNavData, filtered[i].date)
+    if (prevBench && currBench && prevBench.nav > 0 && filtered[i - 1].nav > 0) {
+      matched.push({
+        fundReturn: (filtered[i].nav - filtered[i - 1].nav) / filtered[i - 1].nav,
+        benchReturn: (currBench.nav - prevBench.nav) / prevBench.nav,
+      })
+    }
+  }
+
+  if (matched.length < 20) return null
+
+  const fundMean = matched.reduce((s, m) => s + m.fundReturn, 0) / matched.length
+  const benchMean = matched.reduce((s, m) => s + m.benchReturn, 0) / matched.length
+
+  let covariance = 0
+  let benchVariance = 0
+  for (const m of matched) {
+    covariance += (m.fundReturn - fundMean) * (m.benchReturn - benchMean)
+    benchVariance += (m.benchReturn - benchMean) ** 2
+  }
+  covariance /= matched.length
+  benchVariance /= matched.length
+
+  if (benchVariance < 1e-12) return null
+  const beta = covariance / benchVariance
+
+  // Annualised returns
+  const fundReturns = calculateReturns(navData)
+  const key = periodYears >= 5 ? '5Y' : periodYears >= 3 ? '3Y' : '1Y'
+  const annualisedFundReturn = fundReturns[key]?.return
+  if (annualisedFundReturn == null) return null
+
+  const benchFirst = getNavOnDate(benchmarkNavData, cutoffStr)
+  const benchLast = benchmarkNavData[benchmarkNavData.length - 1]
+  if (!benchFirst || !benchLast || benchFirst.nav <= 0) return null
+  const annualisedBenchReturn = cagr(benchFirst.nav, benchLast.nav, periodYears)
+  if (annualisedBenchReturn == null) return null
+
+  const annualisedRf = riskFreeRate
+  const alpha = annualisedFundReturn - (annualisedRf + beta * (annualisedBenchReturn - annualisedRf))
+
+  return { alpha, beta }
+}
+
+// Portfolio standard deviation — weighted across multiple funds
+export function portfolioStdDev(navDataMap, weights) {
+  const schemeCodes = Object.keys(weights)
+  if (schemeCodes.length === 0) return null
+
+  const cutoff = new Date()
+  cutoff.setFullYear(cutoff.getFullYear() - 3)
+  const cutoffStr = cutoff.toISOString().split('T')[0]
+
+  // Calculate daily returns for each fund, keyed by date
+  const returnsByDate = {}
+  for (const code of schemeCodes) {
+    const navData = navDataMap[code]
+    if (!navData || navData.length < 30) return null
+
+    const filtered = navData.filter(d => d.date >= cutoffStr)
+    for (let i = 1; i < filtered.length; i++) {
+      const date = filtered[i].date
+      const ret = (filtered[i].nav - filtered[i - 1].nav) / filtered[i - 1].nav
+      if (!returnsByDate[date]) returnsByDate[date] = {}
+      returnsByDate[date][code] = ret
+    }
+  }
+
+  // Find common dates where all funds have returns
+  const commonDates = Object.keys(returnsByDate).filter(
+    date => schemeCodes.every(code => returnsByDate[date][code] !== undefined)
+  )
+
+  if (commonDates.length < 30) return null
+
+  // Weighted portfolio returns
+  const portfolioReturns = commonDates.map(date => {
+    let wr = 0
+    for (const code of schemeCodes) {
+      wr += weights[code] * returnsByDate[date][code]
+    }
+    return wr
+  })
+
+  const mean = portfolioReturns.reduce((s, r) => s + r, 0) / portfolioReturns.length
+  const variance = portfolioReturns.reduce((s, r) => s + (r - mean) ** 2, 0) / (portfolioReturns.length - 1)
+  const dailyStdDev = Math.sqrt(variance)
+
+  return dailyStdDev * Math.sqrt(252) * 100
+}
+
+// Fund age in years from NAV history
+export function fundAgeYears(navData) {
+  if (!navData || navData.length === 0) return 0
+  const firstDate = new Date(navData[0].date)
+  const lastDate = new Date(navData[navData.length - 1].date)
+  return (lastDate - firstDate) / (365.25 * 24 * 60 * 60 * 1000)
+}

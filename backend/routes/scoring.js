@@ -2,7 +2,10 @@ import { Router } from 'express'
 import { getDb } from '../db/index.js'
 import { scoreClientFunds, storeFundMetrics } from '../services/scoringEngine.js'
 import { fetchNavHistory } from '../services/mfapi.js'
-import { calculateReturns } from '../services/calculations.js'
+import { calculateReturns, standardDeviation, maxDrawdown,
+         sharpeRatio, sortinoRatio, calmarRatio,
+         jensensAlpha, fundAgeYears } from '../services/calculations.js'
+import { getCategoryRiskLevel } from '../utils/fundClassification.js'
 
 const router = Router()
 
@@ -47,70 +50,90 @@ router.get('/scoring/:clientId/recommendations', (req, res) => {
 
 // POST /api/scoring/enrich-metrics/:schemeCode — compute and store fund metrics
 router.post('/scoring/enrich-metrics/:schemeCode', async (req, res) => {
-  const schemeCode = req.params.schemeCode
-  if (!/^\d{4,6}$/.test(schemeCode)) {
-    return res.status(400).json({ message: 'Invalid scheme code' })
-  }
-
+  const { schemeCode } = req.params
   try {
-    const navHistory = await fetchNavHistory(schemeCode)
-    if (!navHistory || navHistory.length === 0) {
-      return res.status(404).json({ message: 'No NAV history found' })
+    const db = getDb()
+
+    // Fetch fund NAV history
+    const { data: navData } = await fetchNavHistory(schemeCode)
+    if (!navData || navData.length < 30) {
+      return res.status(400).json({
+        message: 'Insufficient NAV history (need 30+ data points)'
+      })
     }
 
-    const returns = calculateReturns(navHistory)
+    // Fetch Nifty 500 benchmark (scheme code 118989 is Axis Bluechip
+    // as proxy — replace with actual Nifty 500 index fund later)
+    // Use scheme code 100356 (UTI Nifty 50 Index) as benchmark proxy
+    let benchmarkData = null
+    try {
+      const benchResult = await fetchNavHistory('100356')
+      benchmarkData = benchResult.data
+    } catch (e) {
+      console.warn('Benchmark fetch failed, skipping alpha calculation')
+    }
 
-    // Compute standard deviation of daily returns
-    const dailyReturns = []
-    for (let i = 1; i < navHistory.length; i++) {
-      if (navHistory[i - 1].nav > 0) {
-        dailyReturns.push((navHistory[i].nav - navHistory[i - 1].nav) / navHistory[i - 1].nav)
+    // Compute all metrics
+    const returns = calculateReturns(navData)
+    const sd = standardDeviation(navData, 3)
+    const dd = maxDrawdown(navData, 3)
+    const sharpe = sharpeRatio(navData, 6, 3)
+    const sortino = sortinoRatio(navData, 6, 3)
+    const calmar = calmarRatio(navData, 3)
+    const ageYears = fundAgeYears(navData)
+
+    let alpha = null
+    let beta = null
+    if (benchmarkData && benchmarkData.length >= 30) {
+      const alphaResult = jensensAlpha(navData, benchmarkData, 6, 3)
+      if (alphaResult) {
+        alpha = alphaResult.alpha
+        beta = alphaResult.beta
       }
     }
 
-    let std_deviation = 0
-    if (dailyReturns.length > 1) {
-      const mean = dailyReturns.reduce((s, r) => s + r, 0) / dailyReturns.length
-      const variance = dailyReturns.reduce((s, r) => s + (r - mean) ** 2, 0) / (dailyReturns.length - 1)
-      std_deviation = Math.sqrt(variance) * Math.sqrt(252) // annualised
-    }
+    const fundInfo = db.prepare(
+      'SELECT scheme_category FROM funds WHERE scheme_code = ?'
+    ).get(schemeCode)
 
-    // Max drawdown
-    let max_drawdown = 0
-    let peak = navHistory[0]?.nav || 0
-    for (const point of navHistory) {
-      if (point.nav > peak) peak = point.nav
-      const drawdown = peak > 0 ? (peak - point.nav) / peak : 0
-      if (drawdown > max_drawdown) max_drawdown = drawdown
-    }
-
-    // Sharpe ratio (assume risk-free rate 6% annualised)
-    const riskFreeDaily = 0.06 / 252
-    let sharpe_ratio = 0
-    if (dailyReturns.length > 1 && std_deviation > 0) {
-      const meanDaily = dailyReturns.reduce((s, r) => s + r, 0) / dailyReturns.length
-      const annualisedReturn = meanDaily * 252
-      sharpe_ratio = (annualisedReturn - 0.06) / std_deviation
-    }
-
-    const metrics = {
+    // Store enriched metrics
+    storeFundMetrics({
       scheme_code: schemeCode,
-      std_deviation: Math.round(std_deviation * 10000) / 10000,
-      max_drawdown: Math.round(max_drawdown * 10000) / 10000,
-      sharpe_ratio: Math.round(sharpe_ratio * 100) / 100,
+      std_deviation: sd,
+      max_drawdown: dd,
+      sharpe_ratio: sharpe,
+      sortino_ratio: sortino,
+      calmar_ratio: calmar,
+      jensen_alpha: alpha,
       return_1y: returns['1Y']?.return ?? null,
       return_3y: returns['3Y']?.return ?? null,
       return_5y: returns['5Y']?.return ?? null,
       category_avg_1y: null,
       category_avg_3y: null,
-      risk_level: std_deviation > 0.25 ? 'very_high' : std_deviation > 0.20 ? 'high' : std_deviation > 0.15 ? 'moderate' : std_deviation > 0.08 ? 'low' : 'very_low',
-      metrics_date: navHistory[navHistory.length - 1]?.date || null,
-    }
+      risk_level: fundInfo
+        ? getCategoryRiskLevel(fundInfo.scheme_category)
+        : null,
+      metrics_date: navData[navData.length - 1]?.date || null,
+    })
 
-    storeFundMetrics(metrics)
-    res.json(metrics)
+    res.json({
+      scheme_code: schemeCode,
+      age_years: Math.round(ageYears * 10) / 10,
+      metrics: {
+        sharpe: sharpe?.toFixed(3),
+        sortino: sortino?.toFixed(3),
+        calmar: calmar?.toFixed(3),
+        jensen_alpha: alpha?.toFixed(2),
+        beta: beta?.toFixed(3),
+        max_drawdown: dd?.toFixed(2),
+        std_deviation: sd?.toFixed(2),
+        return_1y: returns['1Y']?.return?.toFixed(2),
+        return_3y: returns['3Y']?.return?.toFixed(2),
+        return_5y: returns['5Y']?.return?.toFixed(2),
+      }
+    })
   } catch (err) {
-    res.status(500).json({ message: err.message || 'Failed to compute metrics' })
+    res.status(500).json({ message: err.message })
   }
 })
 

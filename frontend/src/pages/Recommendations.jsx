@@ -6,6 +6,13 @@ import { useToast } from '../components/Toast'
 import { formatCurrency } from '../lib/utils'
 import * as api from '../services/api'
 
+function formatProbability(pct) {
+  if (pct === null || pct === undefined) return '—'
+  if (pct >= 80) return { value: pct + '%', color: 'text-emerald-600', label: 'High confidence' }
+  if (pct >= 60) return { value: pct + '%', color: 'text-amber-600', label: 'Moderate confidence' }
+  return { value: pct + '%', color: 'text-red-500', label: 'Low confidence — review SIP amount' }
+}
+
 const RISK_COLORS = {
   Conservative: '#22c55e',
   'Moderate Conservative': '#86efac',
@@ -46,6 +53,7 @@ export default function Recommendations() {
   const [generatedAt, setGeneratedAt] = useState(null)
   const [loading, setLoading] = useState(true)
   const [running, setRunning] = useState(false)
+  const [data, setData] = useState(null)
 
   const loadData = async () => {
     setLoading(true)
@@ -58,6 +66,7 @@ export default function Recommendations() {
       setProfile(recData.profile)
       setRecs(recData.recommendations || [])
       setGeneratedAt(recData.generated_at)
+      setData(recData)
     } catch (err) {
       showToast(err.message, 'error')
     } finally {
@@ -198,6 +207,88 @@ export default function Recommendations() {
             </div>
           </div>
 
+          {/* Goal Survival Probability */}
+          {data?.survival_analysis && (
+            <div className="bg-[#1B2A4A] rounded-xl p-6 text-white mb-6">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <h2 className="text-sm font-semibold uppercase tracking-wide text-[#D4A847] flex items-center gap-2">
+                    ⚡ Goal Survival Probability
+                  </h2>
+                  <p className="text-gray-400 text-xs mt-1">
+                    Based on {data.survival_analysis.simulationsRun.toLocaleString('en-IN')} Monte Carlo simulations
+                  </p>
+                </div>
+                {/* Big probability number */}
+                <div className="text-right">
+                  <p className="text-5xl font-bold" style={{
+                    color: data.survival_analysis.baseProbability >= 80
+                      ? '#10b981'
+                      : data.survival_analysis.baseProbability >= 60
+                        ? '#f59e0b'
+                        : '#ef4444'
+                  }}>
+                    {data.survival_analysis.baseProbability}%
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    probability of reaching goal
+                  </p>
+                </div>
+              </div>
+
+              {/* Three outcome cards */}
+              <div className="grid grid-cols-3 gap-4 mb-5">
+                {[
+                  { label: 'Worst Case (5th pct)', value: data.survival_analysis.outcomes.worst, color: '#ef4444' },
+                  { label: 'Median Outcome', value: data.survival_analysis.outcomes.median, color: '#D4A847' },
+                  { label: 'Best Case (95th pct)', value: data.survival_analysis.outcomes.best, color: '#10b981' },
+                ].map(({ label, value, color }) => (
+                  <div key={label} className="bg-white/5 rounded-lg p-4 text-center">
+                    <p className="text-[10px] text-gray-400 uppercase mb-2">{label}</p>
+                    <p className="text-lg font-bold" style={{ color }}>
+                      {value >= 10000000
+                        ? '₹' + (value / 10000000).toFixed(1) + ' Cr'
+                        : value >= 100000
+                          ? '₹' + (value / 100000).toFixed(1) + ' L'
+                          : '₹' + value.toLocaleString('en-IN')}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              {/* India Stress Tests */}
+              {data.survival_analysis.stressTests && (
+                <div>
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-3">
+                    Stress Test Survival Rates
+                  </p>
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { key: 'covid2020', label: 'COVID-2020 Crash', emoji: '🦠' },
+                      { key: 'globalFinancialCrisis', label: 'GFC 2008 Scenario', emoji: '📉' },
+                      { key: 'prolongedStagnation', label: 'Lost Decade Scenario', emoji: '⏳' },
+                    ].map(({ key, label, emoji }) => {
+                      const pct = data.survival_analysis.stressTests[key]
+                      return (
+                        <div key={key} className="bg-white/5 rounded-lg px-3 py-2.5 flex items-center justify-between">
+                          <div>
+                            <p className="text-[10px] text-gray-400">{emoji} {label}</p>
+                          </div>
+                          <p className={`text-sm font-bold ml-2 shrink-0 ${
+                            pct >= 70 ? 'text-emerald-400' : pct >= 50 ? 'text-amber-400' : 'text-red-400'
+                          }`}>
+                            {pct}%
+                          </p>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Recommendations Table */}
           {recommendations.length > 0 && (
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden mb-6">
@@ -232,12 +323,28 @@ export default function Recommendations() {
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="w-20 bg-gray-200 rounded-full h-2">
-                              <div className="bg-[#D4A847] h-2 rounded-full" style={{ width: `${(rec.composite_score / 80) * 100}%` }} />
+                          {(() => { const scorePercent = Math.round((rec.composite_score / 80) * 100); return (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <div className="w-14 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div className="h-full rounded-full"
+                                  style={{
+                                    width: `${scorePercent}%`,
+                                    backgroundColor: scorePercent > 75 ? '#10b981' : scorePercent > 50 ? '#D4A847' : '#94a3b8'
+                                  }} />
+                              </div>
+                              <span className="text-xs font-bold text-[#1B2A4A]">{scorePercent}%</span>
                             </div>
-                            <span className="text-xs font-medium text-gray-600">{rec.composite_score}/80</span>
+                            {rec.sortino_ratio != null && (
+                              <p className="text-[9px] text-gray-400">Sortino: {Number(rec.sortino_ratio).toFixed(2)}</p>
+                            )}
+                            {rec.jensen_alpha != null && (
+                              <p className={`text-[9px] font-medium ${rec.jensen_alpha > 0 ? 'text-emerald-500' : 'text-red-400'}`}>
+                                α: {rec.jensen_alpha > 0 ? '+' : ''}{Number(rec.jensen_alpha).toFixed(2)}%
+                              </p>
+                            )}
                           </div>
+                          ) })()}
                         </td>
                         <td className="px-4 py-3 text-right font-medium text-[#1B2A4A]">{formatCurrency(rec.recommended_sip || 0)}</td>
                         <td className="px-4 py-3">
@@ -276,6 +383,7 @@ export default function Recommendations() {
                 </div>
               ))}
             </div>
+            <p className="text-[10px] text-gray-400 mt-4">Monte Carlo analysis runs 1,000+ simulations using t-distribution sampling to account for fat-tailed return distributions observed in Indian equity markets. Stress scenarios are calibrated to COVID-2020, GFC 2008, and prolonged stagnation events. Survival probability is not a guarantee.</p>
           </div>
 
           {/* CTA Strip */}

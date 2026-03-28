@@ -29,6 +29,137 @@ async function passesHardFilters(fund, metricsMap, db) {
   return true
 }
 
+function buildAllocationTargets(profile) {
+  const targets = []
+  const eq = (profile.recommended_equity_pct || 60) / 100
+  const dt = (profile.recommended_debt_pct || 30) / 100
+  const gd = (profile.recommended_gold_pct || 10) / 100
+  const horizon = Number(profile.investment_horizon) || 10
+  const taxSlab = parseInt(profile.tax_slab) || 30
+  const elssHeadroom = 150000 - (profile.elss_invested_this_year || 0)
+
+  // ELSS
+  if (taxSlab >= 30 && elssHeadroom > 0) {
+    targets.push({ bucket: 'equity', category_keyword: 'ELSS', label: 'ELSS (Tax Saving)', weight: eq * 0.20, priority: 1 })
+  }
+
+  // Large cap
+  if (horizon >= 5) {
+    targets.push({ bucket: 'equity', category_keyword: 'Large Cap Fund', label: 'Large Cap', weight: eq * 0.25, priority: 2 })
+  }
+
+  // Flexi cap
+  targets.push({ bucket: 'equity', category_keyword: 'Flexi Cap Fund', label: 'Flexi Cap', weight: eq * 0.25, priority: 2 })
+
+  // Mid cap
+  if (profile.risk_capacity_score >= 55 && horizon >= 7) {
+    targets.push({ bucket: 'equity', category_keyword: 'Mid Cap Fund', label: 'Mid Cap', weight: eq * 0.20, priority: 3 })
+  }
+
+  // Small cap
+  if (profile.risk_capacity_score >= 75 && horizon >= 10) {
+    targets.push({ bucket: 'equity', category_keyword: 'Small Cap Fund', label: 'Small Cap', weight: eq * 0.15, priority: 4 })
+  }
+
+  // Index fund
+  targets.push({ bucket: 'equity', category_keyword: 'Index Funds', label: 'Index Fund', weight: eq * 0.15, priority: 3 })
+
+  // Debt targets
+  if (dt > 0) {
+    targets.push({ bucket: 'debt', category_keyword: 'Short Duration', label: 'Short Duration', weight: dt * 0.40, priority: 2 })
+    targets.push({ bucket: 'debt', category_keyword: 'Corporate Bond', label: 'Corporate Bond', weight: dt * 0.30, priority: 2 })
+    targets.push({ bucket: 'debt', category_keyword: 'Banking and PSU', label: 'Banking & PSU', weight: dt * 0.30, priority: 3 })
+  }
+
+  // Gold
+  if (gd > 0) {
+    targets.push({ bucket: 'gold', category_keyword: 'Gold', label: 'Gold', weight: gd, priority: 3 })
+  }
+
+  return targets
+}
+
+function deduplicateByCategory(scored, limit) {
+  const bucketCounts = {}
+  const MAX_PER_BUCKET = 3
+  const seenBaseFunds = new Set()
+  const result = []
+
+  function getBaseFundKey(fund) {
+    const name = (fund.scheme_name || '')
+      .toLowerCase()
+      .replace(/\s*-\s*(regular|direct|growth|idcw|dividend|monthly|quarterly|annual|retail|institutional|plan|option|payout|reinvestment)\b.*/gi, '')
+      .trim()
+    return `${fund.amc || ''}__${name}`
+  }
+
+  for (const fund of scored) {
+    const bucket = fund.allocation_bucket || 'other'
+    const baseKey = getBaseFundKey(fund)
+
+    if (seenBaseFunds.has(baseKey)) continue
+
+    bucketCounts[bucket] = (bucketCounts[bucket] || 0) + 1
+    if (bucketCounts[bucket] > MAX_PER_BUCKET) continue
+
+    seenBaseFunds.add(baseKey)
+    result.push({ ...fund, rank: result.length + 1 })
+
+    if (result.length >= limit) break
+  }
+
+  return result
+}
+
+function getBucketType(allocationBucket) {
+  if (!allocationBucket) return 'other'
+  const lower = allocationBucket.toLowerCase()
+  if (lower.includes('debt') || lower.includes('corporate') ||
+      lower.includes('banking') || lower.includes('short') ||
+      lower.includes('duration') || lower.includes('psu') ||
+      lower.includes('gilt')) return 'debt'
+  if (lower.includes('liquid') || lower.includes('overnight') ||
+      lower.includes('money market')) return 'liquid'
+  if (lower.includes('gold')) return 'gold'
+  if (lower.includes('hybrid') || lower.includes('balanced')) return 'hybrid'
+  return 'equity'
+}
+
+function assignSipAmounts(recommendations, profile) {
+  const surplus = profile.investable_surplus || 0
+  if (surplus === 0 || recommendations.length === 0) {
+    return recommendations.map(r => ({ ...r, recommended_sip: 500 }))
+  }
+
+  const equityPct = (profile.recommended_equity_pct || 60) / 100
+  const debtPct = (profile.recommended_debt_pct || 30) / 100
+  const goldPct = (profile.recommended_gold_pct || 10) / 100
+
+  const bucketBudgets = {
+    equity: surplus * equityPct,
+    debt: surplus * debtPct,
+    gold: surplus * goldPct,
+    liquid: surplus * debtPct * 0.3,
+    hybrid: surplus * 0.05,
+    other: 0,
+  }
+
+  const bucketFundCounts = {}
+  for (const r of recommendations) {
+    const bucket = getBucketType(r.allocation_bucket)
+    bucketFundCounts[bucket] = (bucketFundCounts[bucket] || 0) + 1
+  }
+
+  return recommendations.map(r => {
+    const bucket = getBucketType(r.allocation_bucket)
+    const fundsInBucket = bucketFundCounts[bucket] || 1
+    const bucketBudget = bucketBudgets[bucket] || (surplus / recommendations.length)
+    const rawSip = bucketBudget / fundsInBucket
+    const roundedSip = Math.max(500, Math.round(rawSip / 500) * 500)
+    return { ...r, recommended_sip: roundedSip }
+  })
+}
+
 /**
  * Score and rank funds for a client based on their profile.
  * Writes results to fund_recommendations and returns a summary.
@@ -49,10 +180,20 @@ export async function scoreClientFunds(clientId) {
   const targetDebt = profile.recommended_debt_pct || 0
   const targetGold = profile.recommended_gold_pct || 0
 
-  // Pull candidate funds — grab a broad set, we'll score and filter
-  const candidates = db.prepare(
-    'SELECT scheme_code, scheme_name, scheme_category, amc, nav FROM funds WHERE nav IS NOT NULL AND scheme_name IS NOT NULL LIMIT 500'
-  ).all()
+  // Pull candidate funds — Regular Growth plans only (MFD-appropriate)
+  const candidates = db.prepare(`
+    SELECT scheme_code, scheme_name, scheme_category, amc, nav FROM funds
+    WHERE scheme_category != ''
+      AND scheme_category IS NOT NULL
+      AND nav > 0
+      AND LOWER(scheme_name) NOT LIKE '%direct%'
+      AND LOWER(scheme_name) NOT LIKE '% idcw%'
+      AND LOWER(scheme_name) NOT LIKE '%dividend%'
+      AND LOWER(scheme_name) NOT LIKE '%monthly idcw%'
+      AND LOWER(scheme_name) NOT LIKE '%quarterly idcw%'
+      AND LOWER(scheme_name) NOT LIKE '%-growth option%'
+    LIMIT 500
+  `).all()
 
   if (candidates.length === 0) {
     throw new Error('No funds in database — run AMFI sync first')
@@ -63,6 +204,9 @@ export async function scoreClientFunds(clientId) {
   const metricsRows = db.prepare('SELECT * FROM fund_metrics').all()
   for (const m of metricsRows) allMetrics[m.scheme_code] = m
 
+  // Build allocation targets for category fit scoring
+  const allocationTargets = buildAllocationTargets(profile)
+
   const scored = candidates.map(fund => {
     const category = fund.scheme_category || ''
     const bucket = getAllocationBucket(category)
@@ -70,19 +214,20 @@ export async function scoreClientFunds(clientId) {
     const fundRiskScore = riskLevelToScore(riskLevel)
     const reasons = []
 
-    // 1. Category Fit (/25) — how well does this bucket match the recommended allocation
+    // 1. Category Fit (/25) — match against allocation targets
     let categoryFit = 0
-    if (bucket === 'equity' && targetEquity >= 60) { categoryFit = 25; reasons.push('Strong equity fit for growth profile') }
-    else if (bucket === 'equity' && targetEquity >= 40) { categoryFit = 20; reasons.push('Good equity allocation match') }
-    else if (bucket === 'equity' && targetEquity > 0) { categoryFit = 10 }
-    else if (bucket === 'debt' && targetDebt >= 50) { categoryFit = 25; reasons.push('Strong debt fit for conservative profile') }
-    else if (bucket === 'debt' && targetDebt >= 30) { categoryFit = 20; reasons.push('Good debt allocation match') }
-    else if (bucket === 'debt' && targetDebt > 0) { categoryFit = 10 }
-    else if (bucket === 'gold' && targetGold >= 10) { categoryFit = 20; reasons.push('Gold allocation for diversification') }
-    else if (bucket === 'hybrid') { categoryFit = 15; reasons.push('Hybrid fund for balanced exposure') }
-    else if (bucket === 'international') { categoryFit = 12; reasons.push('International diversification') }
-    else if (bucket === 'liquid') { categoryFit = 8 }
-    else { categoryFit = 5 }
+    const categoryLower = category.toLowerCase()
+    const matchingTarget = allocationTargets.find(t => {
+      const keyword = t.category_keyword.toLowerCase()
+      return categoryLower.includes(keyword) || keyword.includes(categoryLower.split(' ')[0].toLowerCase())
+    })
+    if (matchingTarget) {
+      categoryFit = Math.round(25 * matchingTarget.weight * (1 / Math.max(matchingTarget.priority, 1)))
+      categoryFit = Math.min(25, Math.max(5, categoryFit))
+      reasons.push(`Fits ${matchingTarget.label} allocation target`)
+    } else if (bucket === 'hybrid') { categoryFit = 10; reasons.push('Hybrid fund for balanced exposure') }
+    else if (bucket === 'international') { categoryFit = 8; reasons.push('International diversification') }
+    else { categoryFit = 3 }
 
     // 2. Risk Alignment (/25) — closer to profile score = better
     const riskDiff = Math.abs(fundRiskScore - (profile.risk_capacity_score || 50))
@@ -168,16 +313,6 @@ export async function scoreClientFunds(clientId) {
 
     const compositeScore = Math.round((categoryFit + riskAlignment + taxEfficiency + overlapPenalty + qualityScore) * 100) / 100
 
-    // Recommended SIP — proportional to surplus and allocation weight
-    const surplus = profile.investable_surplus || 0
-    let sipWeight = 0
-    if (bucket === 'equity') sipWeight = targetEquity / 100
-    else if (bucket === 'debt') sipWeight = targetDebt / 100
-    else if (bucket === 'gold') sipWeight = targetGold / 100
-    else sipWeight = 0.1
-    // Distribute across ~5 funds per bucket, so divide by 5
-    const recommendedSip = Math.round(surplus * sipWeight / 5 / 100) * 100 // round to nearest 100
-
     return {
       scheme_code: fund.scheme_code,
       scheme_name: fund.scheme_name,
@@ -189,15 +324,22 @@ export async function scoreClientFunds(clientId) {
       tax_efficiency_score: taxEfficiency,
       overlap_penalty: overlapPenalty,
       quality_score: qualityScore,
-      recommended_sip: recommendedSip,
+      recommended_sip: 0,  // assigned after deduplication
       reasons,
       allocation_bucket: bucket,
     }
   })
 
-  // Sort by composite score desc, take top 10
+  // Sort by composite score desc, deduplicate, and assign SIP amounts
   scored.sort((a, b) => b.composite_score - a.composite_score)
-  const top = scored.slice(0, 10)
+  const ranked = deduplicateByCategory(scored, 10)
+
+  // BUG FIX 5: Minimum fund count guardrail
+  if (ranked.length < 5) {
+    console.warn(`[ScoringEngine] Only ${ranked.length} funds passed filters for client ${clientId}. Consider running AMFI sync or relaxing hard filters.`)
+  }
+
+  const top = assignSipAmounts(ranked, profile)
 
   // Persist
   const now = new Date().toISOString()

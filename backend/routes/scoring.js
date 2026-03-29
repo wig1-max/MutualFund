@@ -9,6 +9,72 @@ import { getCategoryRiskLevel } from '../utils/fundClassification.js'
 
 const router = Router()
 
+// GET /api/scoring/metrics/status — check metrics job progress
+router.get('/scoring/metrics/status', (req, res) => {
+  const db = getDb()
+
+  const total = db.prepare(
+    'SELECT COUNT(*) as c FROM funds WHERE nav > 0'
+  ).get().c
+
+  const withMetrics = db.prepare(
+    'SELECT COUNT(*) as c FROM fund_metrics'
+  ).get().c
+
+  const withSortino = db.prepare(
+    'SELECT COUNT(*) as c FROM fund_metrics ' +
+    'WHERE sortino_ratio IS NOT NULL'
+  ).get().c
+
+  const withReturn3y = db.prepare(
+    'SELECT COUNT(*) as c FROM fund_metrics ' +
+    'WHERE return_3y IS NOT NULL'
+  ).get().c
+
+  const navCacheCoverage = db.prepare(`
+    SELECT COUNT(DISTINCT scheme_code) as c
+    FROM nav_cache
+  `).get().c
+
+  const topFunds = db.prepare(`
+    SELECT fm.scheme_code, f.scheme_name, f.scheme_category,
+           fm.sortino_ratio, fm.calmar_ratio, fm.return_3y,
+           fm.data_quality_score, fm.nav_data_points
+    FROM fund_metrics fm
+    JOIN funds f ON f.scheme_code = fm.scheme_code
+    WHERE fm.sortino_ratio IS NOT NULL
+    ORDER BY fm.sortino_ratio DESC
+    LIMIT 10
+  `).all()
+
+  res.json({
+    funds_in_db: total,
+    nav_cache_coverage: navCacheCoverage,
+    funds_with_metrics: withMetrics,
+    funds_with_sortino: withSortino,
+    funds_with_3y_return: withReturn3y,
+    coverage_pct: total > 0
+      ? Math.round(withMetrics / total * 100) : 0,
+    top_10_by_sortino: topFunds,
+  })
+})
+
+// POST /api/scoring/run-metrics-job — manually trigger metrics job
+router.post('/scoring/run-metrics-job', async (req, res) => {
+  res.json({
+    message: 'Metrics job started in background. Check server logs for progress.',
+    note: 'Job processes all funds with 250+ NAV data points.'
+  })
+  setImmediate(async () => {
+    try {
+      const { runMetricsJob } = await import('../services/metricsJob.js')
+      await runMetricsJob()
+    } catch (e) {
+      console.error('[MetricsJob] Manual trigger error:', e.message)
+    }
+  })
+})
+
 // POST /api/scoring/:clientId/run — run scoring engine for client
 router.post('/scoring/:clientId/run', async (req, res) => {
   try {

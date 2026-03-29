@@ -326,214 +326,244 @@ function assignSipAmounts(recommendations, profile) {
   return withSips
 }
 
-/**
- * Score and rank funds for a client based on their profile.
- * Writes results to fund_recommendations and returns a summary.
- */
-export async function scoreClientFunds(clientId) {
-  const db = getDb()
+// ── SLOT-BASED SELECTION ENGINE ────────────────────────────
 
-  // Load profile
-  const profile = db.prepare('SELECT * FROM client_profiles WHERE client_id = ?').get(clientId)
-  if (!profile) throw new Error('Client profile not found — complete the profiling questionnaire first')
+function buildSlots(profile) {
+  const riskScore = profile.risk_capacity_score || 50
+  const horizon   = profile.investment_horizon || 10
+  const taxSlab   = profile.tax_slab || 20
+  const elssInvested = profile.elss_invested_this_year || 0
+  const elssHeadroom = Math.max(0, 150000 - elssInvested)
+  const eq = profile.recommended_equity_pct || 60
+  const de = profile.recommended_debt_pct   || 30
+  const go = profile.recommended_gold_pct   || 10
 
-  // Load existing holdings to detect overlap
-  const existingHoldings = db.prepare('SELECT scheme_code FROM client_holdings WHERE client_id = ?').all(clientId)
-  const heldCodes = new Set(existingHoldings.map(h => h.scheme_code))
+  const slots = []
 
-  // Target allocation from profile
-  const targetEquity = profile.recommended_equity_pct || 0
-  const targetDebt = profile.recommended_debt_pct || 0
-  const targetGold = profile.recommended_gold_pct || 0
+  // ── EQUITY SLOTS ──────────────────────────────────────
 
-  // Pull candidate funds — Regular Growth plans only (MFD-appropriate)
-  const candidates = db.prepare(`
-    SELECT scheme_code, scheme_name, scheme_category,
-           amc, scheme_type, nav
-    FROM funds
-    WHERE scheme_category != ''
-      AND scheme_category IS NOT NULL
-      AND nav > 0
-      AND LOWER(scheme_name) NOT LIKE '%direct%'
-      AND LOWER(scheme_name) NOT LIKE '%idcw%'
-      AND LOWER(scheme_name) NOT LIKE '%dividend%'
-      AND LOWER(scheme_name) NOT LIKE '%bonus%'
-      AND LOWER(scheme_name) NOT LIKE '%retail plan%'
-      AND LOWER(scheme_name) NOT LIKE '%institutional%'
-      AND LOWER(scheme_name) NOT LIKE '%segregated%'
-      AND LOWER(scheme_name) NOT LIKE '%fof%'
-      AND LOWER(scheme_name) NOT LIKE '%fund of fund%'
-      AND LOWER(scheme_category) NOT LIKE '%arbitrage%'
-      AND LOWER(scheme_category) NOT LIKE '%fof overseas%'
-      AND LOWER(scheme_category) NOT LIKE '%fof domestic%'
-      AND (
-        LOWER(scheme_name) LIKE '%regular%'
-        OR LOWER(scheme_name) LIKE '%growth%'
-        OR (
-          LOWER(scheme_name) NOT LIKE '%regular%'
-          AND LOWER(scheme_name) NOT LIKE '%direct%'
-        )
-      )
-    ORDER BY scheme_name
-  `).all()
-
-  if (candidates.length === 0) {
-    throw new Error('No funds in database — run AMFI sync first')
+  // Large Cap — always for any equity allocation
+  if (eq > 0) {
+    slots.push({
+      id: 'large_cap_1',
+      label: 'Large Cap',
+      amfi_category_contains: 'Large Cap Fund',
+      scheme_type: 'Open Ended Schemes',
+      sip_weight: eq * 0.28,
+      required: true,
+    })
   }
 
-  // Pre-load fund_metrics for quality scoring
-  const allMetrics = {}
-  const metricsRows = db.prepare('SELECT * FROM fund_metrics').all()
-  for (const m of metricsRows) allMetrics[m.scheme_code] = m
-
-  // Build allocation targets for category fit scoring
-  const allocationTargets = buildAllocationTargets(profile)
-
-  const scored = candidates.map(fund => {
-    const category = fund.scheme_category || ''
-    const bucket = getAllocationBucket(category)
-    const riskLevel = getCategoryRiskLevel(category)
-    const fundRiskScore = riskLevelToScore(riskLevel)
-    const reasons = []
-
-    // 1. Category Fit (/25) — match against allocation targets
-    let categoryFit = 0
-    const categoryLower = category.toLowerCase()
-    const matchingTarget = allocationTargets.find(t => {
-      const keyword = t.amfi_keyword.toLowerCase()
-      return categoryLower.includes(keyword) || keyword.includes(categoryLower.split(' ')[0].toLowerCase())
+  // Flexi Cap — good for all profiles
+  if (eq > 0) {
+    slots.push({
+      id: 'flexi_cap_1',
+      label: 'Flexi Cap',
+      amfi_category_contains: 'Flexi Cap Fund',
+      scheme_type: 'Open Ended Schemes',
+      sip_weight: eq * 0.28,
+      required: true,
     })
-    if (matchingTarget) {
-      categoryFit = Math.round(25 * matchingTarget.weight * (1 / Math.max(matchingTarget.priority, 1)))
-      categoryFit = Math.min(25, Math.max(5, categoryFit))
-      reasons.push(`Fits ${matchingTarget.label} allocation target`)
-    } else if (bucket === 'hybrid') { categoryFit = 10; reasons.push('Hybrid fund for balanced exposure') }
-    else if (bucket === 'international') { categoryFit = 8; reasons.push('International diversification') }
-    else { categoryFit = 3 }
+  }
 
-    // 2. Risk Alignment (/25) — closer to profile score = better
-    const riskDiff = Math.abs(fundRiskScore - (profile.risk_capacity_score || 50))
-    let riskAlignment = Math.max(0, 25 - riskDiff * 0.3)
-    riskAlignment = Math.round(riskAlignment * 100) / 100
-    if (riskDiff < 15) reasons.push('Well-aligned with risk capacity')
+  // Mid Cap — moderate+ risk, 7+ year horizon
+  if (eq > 0 && riskScore >= 55 && horizon >= 7) {
+    slots.push({
+      id: 'mid_cap_1',
+      label: 'Mid Cap',
+      amfi_category_contains: 'Mid Cap Fund',
+      scheme_type: 'Open Ended Schemes',
+      sip_weight: eq * 0.20,
+      required: false,
+    })
+  }
 
-    // 3. Tax Efficiency (/20)
-    let taxEfficiency = 10 // baseline
-    const taxSlab = parseInt(profile.tax_slab) || 30
-    if (isELSS(category)) {
-      const elssHeadroom = 150000 - (profile.elss_invested_this_year || 0)
-      if (elssHeadroom > 0) { taxEfficiency = 20; reasons.push(`ELSS: ₹${Math.round(elssHeadroom).toLocaleString('en-IN')} 80C headroom`) }
-      else { taxEfficiency = 12 }
-    } else if (isEquityFund(category) && taxSlab >= 20) {
-      taxEfficiency = 15 // equity taxed at lower rates than slab
-      reasons.push('Equity tax advantage vs debt at your slab')
-    } else if (!isEquityFund(category) && taxSlab <= 10) {
-      taxEfficiency = 15 // low slab means debt tax isn't punishing
+  // Small Cap — aggressive, 10+ year horizon
+  if (eq > 0 && riskScore >= 75 && horizon >= 10) {
+    slots.push({
+      id: 'small_cap_1',
+      label: 'Small Cap',
+      amfi_category_contains: 'Small Cap Fund',
+      scheme_type: 'Open Ended Schemes',
+      sip_weight: eq * 0.15,
+      required: false,
+    })
+  }
+
+  // ELSS — only if meaningful tax saving
+  if (eq > 0 && taxSlab >= 20 && elssHeadroom > 0) {
+    slots.push({
+      id: 'elss_1',
+      label: 'ELSS (Tax Saving)',
+      amfi_category_contains: 'ELSS',
+      scheme_type: 'Open Ended Schemes',
+      sip_weight: eq * 0.09,
+      required: false,
+      reason: `ELSS saves \u20B9${Math.round(elssHeadroom * taxSlab / 100).toLocaleString('en-IN')} in taxes this year`
+    })
+  }
+
+  // ── DEBT SLOTS ────────────────────────────────────────
+
+  if (de > 0 && horizon >= 3) {
+    slots.push({
+      id: 'corp_bond_1',
+      label: 'Corporate Bond',
+      amfi_category_contains: 'Corporate Bond Fund',
+      scheme_type: 'Open Ended Schemes',
+      sip_weight: de * 0.55,
+      required: false,
+    })
+    slots.push({
+      id: 'banking_psu_1',
+      label: 'Banking & PSU Debt',
+      amfi_category_contains: 'Banking and PSU Fund',
+      scheme_type: 'Open Ended Schemes',
+      sip_weight: de * 0.45,
+      required: false,
+    })
+  }
+
+  if (de > 0 && horizon < 3) {
+    slots.push({
+      id: 'short_dur_1',
+      label: 'Short Duration',
+      amfi_category_contains: 'Short Duration Fund',
+      scheme_type: 'Open Ended Schemes',
+      sip_weight: de * 0.60,
+      required: false,
+    })
+    slots.push({
+      id: 'liquid_1',
+      label: 'Liquid Fund',
+      amfi_category_contains: 'Liquid Fund',
+      scheme_type: 'Open Ended Schemes',
+      sip_weight: de * 0.40,
+      required: false,
+    })
+  }
+
+  // ── GOLD SLOT ─────────────────────────────────────────
+
+  if (go > 0) {
+    slots.push({
+      id: 'gold_1',
+      label: 'Gold Fund',
+      amfi_category_contains: 'Gold',
+      scheme_type: 'Open Ended Schemes',
+      sip_weight: go * 1.0,
+      required: false,
+    })
+  }
+
+  // Normalise sip_weights to sum to 1
+  const totalWeight = slots.reduce((s, sl) => s + sl.sip_weight, 0)
+  return slots.map(sl => ({
+    ...sl,
+    sip_weight: parseFloat((sl.sip_weight / totalWeight).toFixed(6))
+  }))
+}
+
+function findBestFundForSlot(slot, db, metricsMap, existingHoldingCodes) {
+  // Get all candidate funds matching this slot's category
+  const candidates = db.prepare(`
+    SELECT f.scheme_code, f.scheme_name, f.scheme_category,
+           f.amc, f.nav, f.scheme_type
+    FROM funds f
+    WHERE LOWER(f.scheme_category) LIKE ?
+      AND f.nav > 0
+      AND LOWER(f.scheme_name) NOT LIKE '%direct%'
+      AND LOWER(f.scheme_name) NOT LIKE '%idcw%'
+      AND LOWER(f.scheme_name) NOT LIKE '%dividend%'
+      AND LOWER(f.scheme_name) NOT LIKE '%bonus%'
+      AND LOWER(f.scheme_name) NOT LIKE '%segregated%'
+      AND LOWER(f.scheme_name) NOT LIKE '%fof%'
+      AND LOWER(f.scheme_category) NOT LIKE '%arbitrage%'
+      AND LOWER(f.scheme_category) NOT LIKE '%fof overseas%'
+    ORDER BY f.scheme_name ASC
+  `).all(`%${slot.amfi_category_contains.toLowerCase()}%`)
+
+  if (candidates.length === 0) return null
+
+  // Score each candidate within its slot
+  const scored = candidates.map(fund => {
+    const m = metricsMap[fund.scheme_code]
+    const alreadyHeld = existingHoldingCodes.has(fund.scheme_code)
+
+    // If fund already held by client, deprioritise heavily
+    const heldPenalty = alreadyHeld ? -1000 : 0
+
+    // Primary: sortino ratio (null = 0, treated as unknown)
+    const sortino = m?.sortino_ratio ?? 0
+
+    // Secondary: calmar ratio
+    const calmar = m?.calmar_ratio ?? 0
+
+    // Tertiary: outperformance vs category average
+    const return3y = m?.return_3y ?? 0
+    const categoryAvg3y = m?.category_avg_3y ?? 0
+    const outperformance = return3y - categoryAvg3y
+
+    // Quality proxy: data points in nav_cache
+    const dataPoints = m?.nav_data_points ?? 0
+    const ageScore = Math.min(100, dataPoints / 25)
+
+    // Composite within-slot score
+    // Weights: sortino 40%, calmar 30%, outperformance 20%, age 10%
+    const inSlotScore = (
+      (sortino   * 40) +
+      (calmar    * 30) +
+      (outperformance * 2) +
+      (ageScore  * 0.10)
+    ) + heldPenalty
+
+    const reasons = []
+    if (slot.reason) reasons.push(slot.reason)
+    if (m?.sortino_ratio != null && m.sortino_ratio > 1) {
+      reasons.push(
+        `Strong downside protection (Sortino: ${m.sortino_ratio.toFixed(2)})`
+      )
     }
-
-    // 4. Overlap Penalty (/20 — start at 20, deduct if held)
-    let overlapPenalty = 20
-    if (heldCodes.has(fund.scheme_code)) {
-      overlapPenalty = 0
-      reasons.push('Already held — excluded from new SIP')
+    if (outperformance > 2) {
+      reasons.push(
+        `Beats category average by ${outperformance.toFixed(1)}% (3Y)`
+      )
     }
-
-    // 5. Quality Score (/10) — from pre-computed metrics
-    let qualityScore = 5  // default for no metrics
-    const qualityReasons = []
-    const metrics = allMetrics[fund.scheme_code]
-
-    if (metrics) {
-      let rawScore = 0
-      let components = 0
-
-      // Sortino component (0-4 points) — primary quality signal
-      if (metrics.sortino_ratio !== null && metrics.sortino_ratio !== undefined) {
-        const sortino = metrics.sortino_ratio
-        if (sortino > 2) { rawScore += 4; qualityReasons.push('Excellent downside protection (Sortino > 2)') }
-        else if (sortino > 1) { rawScore += 3; qualityReasons.push('Good risk-adjusted returns (Sortino > 1)') }
-        else if (sortino > 0.5) { rawScore += 2 }
-        else if (sortino > 0) { rawScore += 1 }
-        else { rawScore += 0; qualityReasons.push('Poor downside protection') }
-        components++
-      }
-
-      // Calmar component (0-3 points) — crash recovery signal
-      if (metrics.calmar_ratio !== null && metrics.calmar_ratio !== undefined) {
-        const calmar = metrics.calmar_ratio
-        if (calmar > 1.5) { rawScore += 3; qualityReasons.push('Strong crash recovery (Calmar > 1.5)') }
-        else if (calmar > 0.8) { rawScore += 2 }
-        else if (calmar > 0.4) { rawScore += 1 }
-        else { rawScore += 0; qualityReasons.push('High drawdown relative to returns') }
-        components++
-      }
-
-      // Jensen Alpha component (0-3 points) — manager skill signal
-      if (metrics.jensen_alpha !== null && metrics.jensen_alpha !== undefined) {
-        const alpha = metrics.jensen_alpha
-        if (alpha > 3) { rawScore += 3; qualityReasons.push(`Manager adds ${alpha.toFixed(1)}% alpha vs benchmark`) }
-        else if (alpha > 1) { rawScore += 2 }
-        else if (alpha > 0) { rawScore += 1 }
-        else if (alpha < -2) { rawScore -= 1; qualityReasons.push('Fund underperforms benchmark after risk adjustment') }
-        components++
-      }
-
-      // Peer outperformance (0-2 points)
-      if (metrics.return_3y !== null && metrics.category_avg_3y !== null) {
-        const outperformance = metrics.return_3y - metrics.category_avg_3y
-        if (outperformance > 3) { rawScore += 2; qualityReasons.push(`Outperforms peers by ${outperformance.toFixed(1)}% (3Y)`) }
-        else if (outperformance > 1) { rawScore += 1 }
-        else if (outperformance < -3) { rawScore -= 1 }
-        components++
-      }
-
-      qualityScore = components > 0 ? Math.min(10, Math.max(0, rawScore)) : 5
+    if (m?.calmar_ratio != null && m.calmar_ratio > 1) {
+      reasons.push(
+        `Good crash recovery profile (Calmar: ${m.calmar_ratio.toFixed(2)})`
+      )
     }
-
-    // Add quality reasons to main reasons array
-    reasons.push(...qualityReasons)
-
-    const compositeScore = Math.round((categoryFit + riskAlignment + taxEfficiency + overlapPenalty + qualityScore) * 100) / 100
+    if (reasons.length === 0) {
+      reasons.push(`Best available ${slot.label} by risk-adjusted ranking`)
+    }
 
     return {
-      scheme_code: fund.scheme_code,
-      scheme_name: fund.scheme_name,
-      category,
-      amc: fund.amc || '',
-      composite_score: compositeScore,
-      category_fit_score: categoryFit,
-      risk_alignment_score: riskAlignment,
-      tax_efficiency_score: taxEfficiency,
-      overlap_penalty: overlapPenalty,
-      quality_score: qualityScore,
-      recommended_sip: 0,  // assigned after deduplication
+      ...fund,
+      in_slot_score: inSlotScore,
+      sortino_ratio: m?.sortino_ratio ?? null,
+      calmar_ratio: m?.calmar_ratio ?? null,
+      sharpe_ratio: m?.sharpe_ratio ?? null,
+      jensen_alpha: m?.jensen_alpha ?? null,
+      return_3y: return3y,
+      category_avg_3y: categoryAvg3y,
+      data_quality_score: m?.data_quality_score ?? 0,
+      nav_data_points: dataPoints,
+      allocation_bucket: slot.label,
+      slot_id: slot.id,
       reasons,
-      allocation_bucket: bucket,
+      already_held: alreadyHeld,
     }
   })
 
-  // Sort by composite score desc, deduplicate, and assign SIP amounts
-  scored.sort((a, b) => b.composite_score - a.composite_score)
+  // Sort by in_slot_score descending
+  scored.sort((a, b) => b.in_slot_score - a.in_slot_score)
 
-  // Debug: show top 15 scoring funds before deduplication
-  console.log('\n=== TOP 15 SCORED FUNDS (pre-dedup) ===')
-  scored.slice(0, 15).forEach((f, i) => {
-    console.log(
-      `${i+1}. [${f.composite_score}] ${(f.scheme_name||'').substring(0,45).padEnd(45)} | ${(f.scheme_category||'').substring(0,30).padEnd(30)} | bucket: ${f.allocation_bucket}`
-    )
-  })
-  console.log('=== END DEBUG ===\n')
+  // Return best fund
+  return scored[0] || null
+}
 
-  const ranked = deduplicateByCategory(scored, 10)
-
-  // BUG FIX 5: Minimum fund count guardrail
-  if (ranked.length < 5) {
-    console.warn(`[ScoringEngine] Only ${ranked.length} funds passed filters for client ${clientId}. Consider running AMFI sync or relaxing hard filters.`)
-  }
-
-  const top = assignSipAmounts(ranked, profile)
-
-  // Persist
+function persistRecommendations(db, clientId, recommendations) {
   const now = new Date().toISOString()
   const insertRecs = db.transaction((recs) => {
     db.prepare('DELETE FROM fund_recommendations WHERE client_id = ?').run(clientId)
@@ -550,48 +580,211 @@ export async function scoreClientFunds(clientId) {
         @recommended_sip, @rank, @reasons, @allocation_bucket, @generated_at
       )
     `)
-    recs.forEach((rec, i) => {
+    recs.forEach((rec) => {
       stmt.run({
         client_id: clientId,
-        ...rec,
-        rank: i + 1,
+        scheme_code: rec.scheme_code,
+        scheme_name: rec.scheme_name,
+        category: rec.category,
+        amc: rec.amc,
+        composite_score: rec.composite_score,
+        category_fit_score: 0,
+        risk_alignment_score: 0,
+        tax_efficiency_score: 0,
+        overlap_penalty: 0,
+        quality_score: 0,
+        recommended_sip: rec.recommended_sip,
+        rank: rec.rank,
         reasons: JSON.stringify(rec.reasons),
+        allocation_bucket: rec.allocation_bucket,
         generated_at: now,
       })
     })
   })
+  insertRecs(recommendations)
+}
 
-  insertRecs(top)
+/**
+ * Slot-based fund selection engine.
+ * Builds slots from client profile, fills each with the best matching fund.
+ */
+export async function scoreClientFunds(clientId, options = {}) {
+  const { limit = 10, persist = true } = options
+  const db = getDb()
 
-  // Run Monte Carlo for top recommendation as portfolio proxy
+  // Load client profile
+  const profile = db.prepare(
+    'SELECT * FROM client_profiles WHERE client_id = ?'
+  ).get(clientId)
+  if (!profile) {
+    throw new Error(
+      'Client profile not found. Complete the profiling questionnaire first.'
+    )
+  }
+
+  // Load existing holdings for overlap detection
+  const casHoldings = db.prepare(
+    'SELECT scheme_code FROM cas_holdings WHERE client_id = ?'
+  ).all(clientId)
+  const manualHoldings = db.prepare(
+    'SELECT scheme_code FROM client_holdings WHERE client_id = ?'
+  ).all(clientId)
+  const existingHoldingCodes = new Set([
+    ...casHoldings.map(h => h.scheme_code),
+    ...manualHoldings.map(h => h.scheme_code),
+  ].filter(Boolean))
+
+  // Load all fund metrics into memory map
+  const allMetrics = db.prepare('SELECT * FROM fund_metrics').all()
+  const metricsMap = {}
+  for (const m of allMetrics) metricsMap[m.scheme_code] = m
+
+  // Log metrics coverage for debugging
+  console.log(
+    `[ScoringEngine] fund_metrics has ${allMetrics.length} funds. ` +
+    `Client ${clientId} has ${existingHoldingCodes.size} existing holdings.`
+  )
+
+  // Build slots for this client
+  const slots = buildSlots(profile)
+  console.log(
+    `[ScoringEngine] ${slots.length} slots defined for profile: ` +
+    `${profile.risk_label}`
+  )
+
+  // Fill each slot with the best matching fund
+  const recommendations = []
+  let rank = 1
+  const surplus = profile.investable_surplus || 0
+
+  for (const slot of slots) {
+    const best = findBestFundForSlot(
+      slot, db, metricsMap, existingHoldingCodes
+    )
+
+    if (!best) {
+      console.warn(
+        `[ScoringEngine] No fund found for slot: ${slot.id} ` +
+        `(category: ${slot.amfi_category_contains})`
+      )
+      continue
+    }
+
+    // Calculate composite score for display (0-100)
+    const hasMetrics = best.nav_data_points > 0
+    const sortinoPts = hasMetrics
+      ? Math.min(30, (best.sortino_ratio || 0) * 15) : 15
+    const calmarPts  = hasMetrics
+      ? Math.min(20, (best.calmar_ratio  || 0) * 10) : 10
+    const qualityPts = Math.min(20, best.data_quality_score * 0.2)
+    const outPts     = Math.min(15,
+      Math.max(0, (best.return_3y - best.category_avg_3y) * 2)
+    )
+    const basePts    = 15
+    const displayScore = Math.round(
+      basePts + sortinoPts + calmarPts + qualityPts + outPts
+    )
+
+    // SIP amount for this slot
+    const rawSip  = surplus * slot.sip_weight
+    const sip     = Math.max(500, Math.round(rawSip / 500) * 500)
+
+    recommendations.push({
+      rank,
+      scheme_code:     best.scheme_code,
+      scheme_name:     best.scheme_name,
+      scheme_category: best.scheme_category,
+      category:        best.scheme_category,
+      amc:             best.amc,
+      composite_score: displayScore,
+      allocation_bucket: slot.label,
+      recommended_sip: sip,
+      reasons:         best.reasons,
+      sortino_ratio:   best.sortino_ratio,
+      calmar_ratio:    best.calmar_ratio,
+      sharpe_ratio:    best.sharpe_ratio,
+      jensen_alpha:    best.jensen_alpha,
+      return_3y:       best.return_3y,
+      category_avg_3y: best.category_avg_3y,
+      data_quality_score: best.data_quality_score,
+      nav_data_points: best.nav_data_points,
+      already_held:    best.already_held,
+      slot_id:         slot.id,
+    })
+    rank++
+  }
+
+  // Scale SIPs so total does not exceed surplus
+  const totalSip = recommendations.reduce(
+    (s, r) => s + r.recommended_sip, 0
+  )
+  if (surplus > 0 && totalSip > surplus) {
+    const scale = surplus / totalSip
+    for (const r of recommendations) {
+      r.recommended_sip = Math.max(
+        500,
+        Math.round((r.recommended_sip * scale) / 500) * 500
+      )
+    }
+  }
+
+  // Run Monte Carlo
   let survivalAnalysis = null
   try {
-    if (top.length > 0) {
-      const avgReturn = top.slice(0, 5)
-        .reduce((sum, r) => sum + (allMetrics[r.scheme_code]?.return_3y || 10), 0) /
-        Math.min(5, top.length)
+    if (recommendations.length > 0 && surplus > 0) {
+      const equityRecs = recommendations.filter(r =>
+        ['Large Cap','Flexi Cap','Mid Cap',
+         'Small Cap','ELSS (Tax Saving)','Multi Cap']
+          .includes(r.allocation_bucket)
+      )
+      const avgReturn3y = equityRecs.length > 0
+        ? equityRecs.reduce((s, r) => s + (r.return_3y || 11), 0) /
+          equityRecs.length
+        : 11
 
       survivalAnalysis = runGoalSurvival({
-        monthlyInvestment: profile.investable_surplus || 0,
+        monthlyInvestment: surplus,
         currentSavings: profile.existing_pf_balance || 0,
-        targetAmount: 10000000,  // fallback ₹1 Cr if no goal set
+        targetAmount: 10000000,
         horizonYears: profile.investment_horizon || 10,
-        portfolioMeanReturn: (avgReturn / 100),
-        portfolioStdDev: 0.15,  // conservative default
+        portfolioMeanReturn: Math.min(0.20,
+          Math.max(0.08, avgReturn3y / 100)),
+        portfolioStdDev: 0.14,
         inflationRate: 0.06,
         numSimulations: 1000,
         stressScenarios: true,
       })
     }
   } catch (e) {
-    console.warn('Monte Carlo failed, skipping:', e.message)
+    console.warn('[ScoringEngine] Monte Carlo skipped:', e.message)
+  }
+
+  // Persist recommendations
+  if (persist) {
+    persistRecommendations(db, clientId, recommendations)
+    db.prepare(
+      "UPDATE client_profiles SET last_scored_at = datetime('now') WHERE client_id = ?"
+    ).run(clientId)
   }
 
   return {
-    client_id: clientId,
-    recommendations_count: top.length,
+    profile: {
+      risk_label: profile.risk_label,
+      risk_capacity_score: profile.risk_capacity_score,
+      investable_surplus: profile.investable_surplus,
+      recommended_equity_pct: profile.recommended_equity_pct,
+      recommended_debt_pct: profile.recommended_debt_pct,
+      recommended_gold_pct: profile.recommended_gold_pct,
+    },
+    slots_defined: slots.length,
+    slots_filled: recommendations.length,
+    metrics_coverage: allMetrics.length,
+    recommendations,
+    total_recommended_sip: recommendations.reduce(
+      (s, r) => s + r.recommended_sip, 0
+    ),
     survival_analysis: survivalAnalysis,
-    generated_at: now,
+    scored_at: new Date().toISOString(),
   }
 }
 

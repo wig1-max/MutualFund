@@ -13,6 +13,7 @@ import reportsRouter from './routes/reports.js'
 import profilingRouter from './routes/profiling.js'
 import scoringRouter from './routes/scoring.js'
 import casRouter from './routes/cas.js'
+import { runMetricsJobBackground } from './services/metricsJob.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const app = express()
@@ -98,4 +99,10 @@ app.get('*', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Tejova backend running on port ${PORT}`)
+  // Fire metrics computation in background — does not
+  // block server startup or any requests
+  setTimeout(() => {
+    console.log('[MetricsJob] Starting background metrics computation...')
+    runMetricsJobBackground()
+  }, 5000)  // 5 second delay so server is fully ready first
 })

@@ -30,6 +30,15 @@ export function getDb() {
     if (!columns.includes('jensen_alpha')) {
       db.exec("ALTER TABLE fund_metrics ADD COLUMN jensen_alpha REAL")
     }
+    if (!columns.includes('data_quality_score')) {
+      db.exec('ALTER TABLE fund_metrics ADD COLUMN data_quality_score REAL')
+    }
+    if (!columns.includes('age_years')) {
+      db.exec('ALTER TABLE fund_metrics ADD COLUMN age_years REAL')
+    }
+    if (!columns.includes('nav_data_points')) {
+      db.exec('ALTER TABLE fund_metrics ADD COLUMN nav_data_points INTEGER')
+    }
   }
   return db
 }

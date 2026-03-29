@@ -13,6 +13,7 @@ import reportsRouter from './routes/reports.js'
 import profilingRouter from './routes/profiling.js'
 import scoringRouter from './routes/scoring.js'
 import casRouter from './routes/cas.js'
+import factsheetsRouter from './routes/factsheets.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const app = express()
@@ -85,6 +86,7 @@ app.use('/api', reportsRouter)
 app.use('/api', profilingRouter)
 app.use('/api', scoringRouter)
 app.use('/api', casRouter)
+app.use('/api', factsheetsRouter)
 
 // ---- Static file serving (production) ----
 
@@ -139,4 +141,30 @@ app.listen(PORT, () => {
       console.error('[MetricsJob] Startup check failed:', e.message)
     }
   }, 3000)
+
+  // Factsheet pipeline — auto-run if less than 5 AMCs extracted this month
+  setTimeout(async () => {
+    try {
+      if (!process.env.ANTHROPIC_API_KEY) {
+        console.log('[FactsheetPipeline] No ANTHROPIC_API_KEY — skipping startup pipeline.')
+        return
+      }
+      const { getDb } = await import('./db/index.js')
+      const db = getDb()
+      const currentMonth = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+        .toISOString().slice(0, 7) // Previous month (factsheets lag)
+      const extracted = db.prepare(
+        "SELECT COUNT(DISTINCT amc) as c FROM fund_factsheets WHERE factsheet_month = ?"
+      ).get(currentMonth)?.c || 0
+      if (extracted < 5) {
+        console.log(`[FactsheetPipeline] Only ${extracted} AMCs extracted for ${currentMonth} — triggering pipeline...`)
+        const { runFactsheetPipelineBackground } = await import('./services/factsheetPipeline.js')
+        await runFactsheetPipelineBackground(currentMonth)
+      } else {
+        console.log(`[FactsheetPipeline] ${extracted} AMCs already extracted for ${currentMonth} — skipping.`)
+      }
+    } catch (e) {
+      console.error('[FactsheetPipeline] Startup check failed:', e.message)
+    }
+  }, 60000)
 })

@@ -468,7 +468,7 @@ function buildSlots(profile) {
   }))
 }
 
-function findBestFundForSlot(slot, db, metricsMap, existingHoldingCodes) {
+function findBestFundForSlot(slot, db, metricsMap, existingHoldingCodes, factsheetMap = {}) {
   // Build category match: LIKE for all, but exact_match slots
   // get an extra exclusion for "Large & Mid" to prevent cross-fill
   const categoryParam = `%${slot.amfi_category_contains.toLowerCase()}%`
@@ -527,19 +527,51 @@ function findBestFundForSlot(slot, db, metricsMap, existingHoldingCodes) {
       (m?.calmar_ratio  ?? 0) > 0
     )
 
+    // Factsheet bonus scoring
+    let factsheetBonus = 0
+    const factsheetReasons = []
+    const fs = factsheetMap[fund.scheme_code]
+    if (fs) {
+      // Low expense ratio bonus: up to +50 pts (2.0% → 0, 0.3% → +50)
+      if (fs.expense_ratio != null && fs.expense_ratio > 0) {
+        const erBonus = Math.max(0, Math.min(50, (2.0 - fs.expense_ratio) * 35))
+        factsheetBonus += erBonus
+        if (fs.expense_ratio < 0.5) {
+          factsheetReasons.push(`Very low expense ratio (${fs.expense_ratio.toFixed(2)}%)`)
+        }
+      }
+      // Manager tenure bonus: up to +30 pts for 10+ years
+      if (fs.manager_tenure_years != null && fs.manager_tenure_years > 0) {
+        const tenureBonus = Math.min(30, fs.manager_tenure_years * 3)
+        factsheetBonus += tenureBonus
+        if (fs.manager_tenure_years >= 5) {
+          factsheetReasons.push(`Experienced fund manager (${fs.manager_tenure_years.toFixed(1)} yr tenure)`)
+        }
+      }
+      // AUM sweet spot: 5K–50K Cr gets +20 pts
+      if (fs.aum_cr != null) {
+        if (fs.aum_cr >= 5000 && fs.aum_cr <= 50000) {
+          factsheetBonus += 20
+        } else if (fs.aum_cr >= 1000) {
+          factsheetBonus += 10
+        }
+      }
+    }
+
     const inSlotScore = hasRealMetrics
       ? (
           (sortino   * 40) +
           (calmar    * 30) +
           (outperformance * 2) +
-          (ageScore  * 0.10)
+          (ageScore  * 0.10) +
+          factsheetBonus
         ) + heldPenalty
       : (
-          // Fallback: rank purely by nav history length
-          navDataPoints + heldPenalty
+          // Fallback: rank purely by nav history length + factsheet bonus
+          navDataPoints + factsheetBonus + heldPenalty
         )
 
-    const reasons = []
+    const reasons = [...factsheetReasons]
     if (slot.reason) reasons.push(slot.reason)
     if (m?.sortino_ratio != null && m.sortino_ratio > 1) {
       reasons.push(
@@ -661,6 +693,17 @@ export async function scoreClientFunds(clientId, options = {}) {
   const metricsMap = {}
   for (const m of allMetrics) metricsMap[m.scheme_code] = m
 
+  // Load latest factsheet data into memory map
+  const allFactsheets = db.prepare(`
+    SELECT scheme_code, expense_ratio, aum_cr, manager_tenure_years, portfolio_pe
+    FROM fund_factsheets
+    WHERE scheme_code IS NOT NULL
+    GROUP BY scheme_code
+    HAVING factsheet_month = MAX(factsheet_month)
+  `).all()
+  const factsheetMap = {}
+  for (const fs of allFactsheets) factsheetMap[fs.scheme_code] = fs
+
   // Log metrics coverage for debugging
   console.log(
     `[ScoringEngine] fund_metrics has ${allMetrics.length} funds. ` +
@@ -681,7 +724,7 @@ export async function scoreClientFunds(clientId, options = {}) {
 
   for (const slot of slots) {
     const best = findBestFundForSlot(
-      slot, db, metricsMap, existingHoldingCodes
+      slot, db, metricsMap, existingHoldingCodes, factsheetMap
     )
 
     if (!best) {

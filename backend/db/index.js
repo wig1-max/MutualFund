@@ -39,6 +39,18 @@ export function getDb() {
     if (!columns.includes('nav_data_points')) {
       db.exec('ALTER TABLE fund_metrics ADD COLUMN nav_data_points INTEGER')
     }
+    if (!columns.includes('expense_ratio')) {
+      db.exec('ALTER TABLE fund_metrics ADD COLUMN expense_ratio REAL')
+    }
+    if (!columns.includes('aum_cr')) {
+      db.exec('ALTER TABLE fund_metrics ADD COLUMN aum_cr REAL')
+    }
+    if (!columns.includes('manager_tenure_years')) {
+      db.exec('ALTER TABLE fund_metrics ADD COLUMN manager_tenure_years REAL')
+    }
+    if (!columns.includes('portfolio_pe')) {
+      db.exec('ALTER TABLE fund_metrics ADD COLUMN portfolio_pe REAL')
+    }
   }
   return db
 }

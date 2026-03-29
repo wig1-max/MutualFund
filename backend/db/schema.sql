@@ -194,3 +194,59 @@ CREATE TABLE IF NOT EXISTS fund_metrics (
 );
 
 CREATE INDEX IF NOT EXISTS idx_fund_metrics_risk ON fund_metrics(risk_level);
+
+-- AMC factsheet extracted data
+CREATE TABLE IF NOT EXISTS fund_factsheets (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  scheme_code TEXT,
+  amc TEXT NOT NULL,
+  fund_name_raw TEXT,
+  factsheet_month TEXT,
+  source_url TEXT,
+
+  -- Extracted metrics
+  expense_ratio REAL,
+  aum_cr REAL,
+  fund_manager TEXT,
+  manager_tenure_years REAL,
+  portfolio_turnover REAL,
+  benchmark TEXT,
+  exit_load TEXT,
+
+  -- Portfolio characteristics
+  top_holdings TEXT,
+  sector_allocation TEXT,
+  portfolio_pe REAL,
+  portfolio_pb REAL,
+  large_cap_pct REAL,
+  mid_cap_pct REAL,
+  small_cap_pct REAL,
+
+  -- Strategy signals
+  investment_style TEXT,
+  investment_objective TEXT,
+
+  -- Extraction metadata
+  extraction_confidence TEXT DEFAULT 'medium',
+  raw_extracted TEXT,
+  extracted_at TEXT DEFAULT (datetime('now')),
+  extraction_error TEXT,
+
+  UNIQUE(amc, fund_name_raw, factsheet_month)
+);
+
+CREATE INDEX IF NOT EXISTS idx_factsheets_scheme ON fund_factsheets(scheme_code);
+CREATE INDEX IF NOT EXISTS idx_factsheets_amc_month ON fund_factsheets(amc, factsheet_month);
+
+CREATE TABLE IF NOT EXISTS amc_factsheet_sources (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  amc_name TEXT NOT NULL UNIQUE,
+  amc_slug TEXT NOT NULL,
+  factsheet_url_template TEXT,
+  factsheet_page_url TEXT,
+  fetch_method TEXT DEFAULT 'direct',
+  last_fetched TEXT,
+  last_fetch_status TEXT,
+  funds_extracted INTEGER DEFAULT 0,
+  active INTEGER DEFAULT 1
+);

@@ -348,6 +348,7 @@ function buildSlots(profile) {
       id: 'large_cap_1',
       label: 'Large Cap',
       amfi_category_contains: 'Large Cap Fund',
+      exact_match: true,
       scheme_type: 'Open Ended Schemes',
       sip_weight: eq * 0.28,
       required: true,
@@ -360,6 +361,7 @@ function buildSlots(profile) {
       id: 'flexi_cap_1',
       label: 'Flexi Cap',
       amfi_category_contains: 'Flexi Cap Fund',
+      exact_match: true,
       scheme_type: 'Open Ended Schemes',
       sip_weight: eq * 0.28,
       required: true,
@@ -372,6 +374,7 @@ function buildSlots(profile) {
       id: 'mid_cap_1',
       label: 'Mid Cap',
       amfi_category_contains: 'Mid Cap Fund',
+      exact_match: true,
       scheme_type: 'Open Ended Schemes',
       sip_weight: eq * 0.20,
       required: false,
@@ -384,6 +387,7 @@ function buildSlots(profile) {
       id: 'small_cap_1',
       label: 'Small Cap',
       amfi_category_contains: 'Small Cap Fund',
+      exact_match: true,
       scheme_type: 'Open Ended Schemes',
       sip_weight: eq * 0.15,
       required: false,
@@ -465,12 +469,23 @@ function buildSlots(profile) {
 }
 
 function findBestFundForSlot(slot, db, metricsMap, existingHoldingCodes) {
+  // Build category condition based on exact_match flag
+  const categoryCondition = slot.exact_match
+    ? `AND LOWER(f.scheme_category) = LOWER(?)`
+    : `AND LOWER(f.scheme_category) LIKE ?`
+
+  const categoryParam = slot.exact_match
+    ? slot.amfi_category_contains.toLowerCase()
+    : `%${slot.amfi_category_contains.toLowerCase()}%`
+
   // Get all candidate funds matching this slot's category
   const candidates = db.prepare(`
     SELECT f.scheme_code, f.scheme_name, f.scheme_category,
-           f.amc, f.nav, f.scheme_type
+           f.amc, f.nav, f.scheme_type,
+           (SELECT COUNT(*) FROM nav_cache nc
+            WHERE nc.scheme_code = f.scheme_code) as data_points
     FROM funds f
-    WHERE LOWER(f.scheme_category) LIKE ?
+    WHERE ${categoryCondition}
       AND f.nav > 0
       AND LOWER(f.scheme_name) NOT LIKE '%direct%'
       AND LOWER(f.scheme_name) NOT LIKE '%idcw%'
@@ -480,8 +495,10 @@ function findBestFundForSlot(slot, db, metricsMap, existingHoldingCodes) {
       AND LOWER(f.scheme_name) NOT LIKE '%fof%'
       AND LOWER(f.scheme_category) NOT LIKE '%arbitrage%'
       AND LOWER(f.scheme_category) NOT LIKE '%fof overseas%'
+      AND LOWER(f.scheme_category) NOT LIKE '%large & mid%'
+      AND LOWER(f.scheme_category) NOT LIKE '%large and mid%'
     ORDER BY f.scheme_name ASC
-  `).all(`%${slot.amfi_category_contains.toLowerCase()}%`)
+  `).all(categoryParam)
 
   if (candidates.length === 0) return null
 
@@ -504,18 +521,28 @@ function findBestFundForSlot(slot, db, metricsMap, existingHoldingCodes) {
     const categoryAvg3y = m?.category_avg_3y ?? 0
     const outperformance = return3y - categoryAvg3y
 
-    // Quality proxy: data points in nav_cache
-    const dataPoints = m?.nav_data_points ?? 0
-    const ageScore = Math.min(100, dataPoints / 25)
+    // Use data_points from the fund record itself (SELECT subquery)
+    const navDataPoints = fund.data_points || m?.nav_data_points || 0
+    const ageScore = Math.min(100, navDataPoints / 25)
 
-    // Composite within-slot score
-    // Weights: sortino 40%, calmar 30%, outperformance 20%, age 10%
-    const inSlotScore = (
-      (sortino   * 40) +
-      (calmar    * 30) +
-      (outperformance * 2) +
-      (ageScore  * 0.10)
-    ) + heldPenalty
+    // Primary sort: if any real metrics exist, use them
+    // Tiebreaker when all metrics are zero: use data_points
+    const hasRealMetrics = (
+      (m?.sortino_ratio ?? 0) > 0 ||
+      (m?.calmar_ratio  ?? 0) > 0
+    )
+
+    const inSlotScore = hasRealMetrics
+      ? (
+          (sortino   * 40) +
+          (calmar    * 30) +
+          (outperformance * 2) +
+          (ageScore  * 0.10)
+        ) + heldPenalty
+      : (
+          // Fallback: rank purely by nav history length
+          navDataPoints + heldPenalty
+        )
 
     const reasons = []
     if (slot.reason) reasons.push(slot.reason)
@@ -548,7 +575,7 @@ function findBestFundForSlot(slot, db, metricsMap, existingHoldingCodes) {
       return_3y: return3y,
       category_avg_3y: categoryAvg3y,
       data_quality_score: m?.data_quality_score ?? 0,
-      nav_data_points: dataPoints,
+      nav_data_points: navDataPoints,
       allocation_bucket: slot.label,
       slot_id: slot.id,
       reasons,

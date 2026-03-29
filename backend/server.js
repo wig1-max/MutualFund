@@ -13,7 +13,6 @@ import reportsRouter from './routes/reports.js'
 import profilingRouter from './routes/profiling.js'
 import scoringRouter from './routes/scoring.js'
 import casRouter from './routes/cas.js'
-import { runMetricsJobBackground } from './services/metricsJob.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const app = express()
@@ -99,10 +98,45 @@ app.get('*', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Tejova backend running on port ${PORT}`)
-  // Fire metrics computation in background — does not
-  // block server startup or any requests
-  setTimeout(() => {
-    console.log('[MetricsJob] Starting background metrics computation...')
-    runMetricsJobBackground()
-  }, 5000)  // 5 second delay so server is fully ready first
+
+  setTimeout(async () => {
+    try {
+      const { getDb } = await import('./db/index.js')
+      const db = getDb()
+
+      // Check current metrics coverage
+      const metricsCount = db.prepare(
+        'SELECT COUNT(*) as c FROM fund_metrics ' +
+        'WHERE sortino_ratio IS NOT NULL'
+      ).get().c
+
+      const navCacheCount = db.prepare(
+        'SELECT COUNT(DISTINCT scheme_code) as c ' +
+        'FROM nav_cache'
+      ).get().c
+
+      console.log(
+        `[MetricsJob] Coverage check: ${metricsCount} funds ` +
+        `have metrics, ${navCacheCount} funds in NAV cache.`
+      )
+
+      if (metricsCount < navCacheCount * 0.5) {
+        // Less than 50% coverage — run the job
+        console.log(
+          '[MetricsJob] Coverage below 50% — starting ' +
+          'background computation now...'
+        )
+        const { runMetricsJobBackground } = await import(
+          './services/metricsJob.js'
+        )
+        await runMetricsJobBackground()
+      } else {
+        console.log(
+          '[MetricsJob] Coverage sufficient — skipping startup job.'
+        )
+      }
+    } catch (e) {
+      console.error('[MetricsJob] Startup check failed:', e.message)
+    }
+  }, 3000)
 })

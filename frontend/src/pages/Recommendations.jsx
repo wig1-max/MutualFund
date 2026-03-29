@@ -173,9 +173,9 @@ export default function Recommendations() {
                 <div className={`h-2.5 rounded-full transition-all ${sipPct > 70 ? 'bg-red-500' : 'bg-[#D4A847]'}`}
                   style={{ width: `${Math.min(100, sipPct)}%` }} />
               </div>
-              {sipPct > 70 && (
+              {data?.total_recommended_sip > data?.profile?.investable_surplus * 1.05 && (
                 <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
-                  <AlertTriangle size={12} /> SIPs exceed 70% of surplus
+                  <AlertTriangle size={12} /> Total SIPs exceed investable surplus — consider reducing
                 </p>
               )}
             </div>

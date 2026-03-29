@@ -469,14 +469,9 @@ function buildSlots(profile) {
 }
 
 function findBestFundForSlot(slot, db, metricsMap, existingHoldingCodes) {
-  // Build category condition based on exact_match flag
-  const categoryCondition = slot.exact_match
-    ? `AND LOWER(f.scheme_category) = LOWER(?)`
-    : `AND LOWER(f.scheme_category) LIKE ?`
-
-  const categoryParam = slot.exact_match
-    ? slot.amfi_category_contains.toLowerCase()
-    : `%${slot.amfi_category_contains.toLowerCase()}%`
+  // Build category match: LIKE for all, but exact_match slots
+  // get an extra exclusion for "Large & Mid" to prevent cross-fill
+  const categoryParam = `%${slot.amfi_category_contains.toLowerCase()}%`
 
   // Get all candidate funds matching this slot's category
   const candidates = db.prepare(`
@@ -485,7 +480,7 @@ function findBestFundForSlot(slot, db, metricsMap, existingHoldingCodes) {
            (SELECT COUNT(*) FROM nav_cache nc
             WHERE nc.scheme_code = f.scheme_code) as data_points
     FROM funds f
-    WHERE ${categoryCondition}
+    WHERE LOWER(f.scheme_category) LIKE ?
       AND f.nav > 0
       AND LOWER(f.scheme_name) NOT LIKE '%direct%'
       AND LOWER(f.scheme_name) NOT LIKE '%idcw%'

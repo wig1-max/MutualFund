@@ -10,20 +10,20 @@ import * as api from '../services/api'
 import { formatCurrency } from '../lib/utils'
 
 const GOAL_TYPES = [
-  { value: 'Retirement', label: 'Retirement', icon: Briefcase, color: 'bg-purple-50 text-purple-600' },
-  { value: 'Child Education', label: 'Child Education', icon: GraduationCap, color: 'bg-blue-50 text-blue-600' },
-  { value: 'House Purchase', label: 'House Purchase', icon: Home, color: 'bg-amber-50 text-amber-600' },
-  { value: 'Emergency Fund', label: 'Emergency Fund', icon: Heart, color: 'bg-red-50 text-red-600' },
-  { value: 'Car Purchase', label: 'Car Purchase', icon: Car, color: 'bg-emerald-50 text-emerald-600' },
-  { value: 'Vacation', label: 'Vacation', icon: Plane, color: 'bg-cyan-50 text-cyan-600' },
-  { value: 'Wedding', label: 'Wedding', icon: Sparkles, color: 'bg-pink-50 text-pink-600' },
-  { value: 'Custom', label: 'Custom Goal', icon: Target, color: 'bg-gray-50 text-gray-600' },
+  { value: 'Retirement', label: 'Retirement', icon: Briefcase, color: 'bg-violet-500/10 text-violet-400' },
+  { value: 'Child Education', label: 'Child Education', icon: GraduationCap, color: 'bg-sky-500/10 text-sky-400' },
+  { value: 'House Purchase', label: 'House Purchase', icon: Home, color: 'bg-amber-500/10 text-amber-400' },
+  { value: 'Emergency Fund', label: 'Emergency Fund', icon: Heart, color: 'bg-red-500/10 text-red-400' },
+  { value: 'Car Purchase', label: 'Car Purchase', icon: Car, color: 'bg-emerald-500/10 text-emerald-400' },
+  { value: 'Vacation', label: 'Vacation', icon: Plane, color: 'bg-sky-500/10 text-sky-400' },
+  { value: 'Wedding', label: 'Wedding', icon: Sparkles, color: 'bg-pink-500/10 text-pink-400' },
+  { value: 'Custom', label: 'Custom Goal', icon: Target, color: 'bg-surface-700 text-slate-400' },
 ]
 
 const PRIORITY_COLORS = {
-  High: 'bg-red-50 text-red-600 border-red-200',
-  Medium: 'bg-amber-50 text-amber-600 border-amber-200',
-  Low: 'bg-green-50 text-green-600 border-green-200',
+  High: 'bg-red-500/10 text-red-400 border-red-500/20',
+  Medium: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  Low: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
 }
 
 function getGoalIcon(type) {
@@ -33,7 +33,7 @@ function getGoalIcon(type) {
 
 function getGoalColor(type) {
   const found = GOAL_TYPES.find(g => g.value === type)
-  return found ? found.color : 'bg-gray-50 text-gray-600'
+  return found ? found.color : 'bg-surface-700 text-slate-400'
 }
 
 export default function GoalPlanner() {

@@ -13,18 +13,18 @@ export default class ErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex items-center justify-center h-screen bg-[#f8f9fc]">
+        <div className="flex items-center justify-center h-screen bg-surface-900">
           <div className="text-center max-w-md">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-50 flex items-center justify-center text-2xl">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center text-2xl text-red-400">
               !
             </div>
-            <h2 className="text-xl font-bold text-[#1B2A4A] mb-2">Something went wrong</h2>
-            <p className="text-gray-500 text-sm mb-4">
+            <h2 className="text-xl font-bold text-slate-100 mb-2">Something went wrong</h2>
+            <p className="text-slate-500 text-sm mb-4">
               {this.state.error?.message || 'An unexpected error occurred.'}
             </p>
             <button
               onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-[#1B2A4A] text-white rounded-lg text-sm hover:bg-[#2d3d66] transition-colors"
+              className="px-4 py-2 bg-amber-500 text-ink-900 rounded-lg text-sm font-semibold hover:bg-amber-400 transition-colors"
             >
               Reload
             </button>

@@ -13,7 +13,7 @@ const TABS = [
   { id: 'heatmap', label: 'Category Browser', icon: Layers },
 ]
 
-const CHART_COLORS = ['#D4A847', '#1B2A4A', '#10b981', '#f59e0b', '#ef4444']
+const CHART_COLORS = ['#f59e0b', '#38bdf8', '#34d399', '#a78bfa', '#ef4444']
 
 export default function FundIntelligence() {
   const [activeTab, setActiveTab] = useState('search')
@@ -37,18 +37,18 @@ export default function FundIntelligence() {
     <div className="p-8 pt-16 lg:pt-8 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-[#1B2A4A] flex items-center gap-2">
-            <TrendingUp className="text-[#D4A847]" /> Fund Intelligence Engine
+          <h1 className="text-2xl font-bold text-slate-100 flex items-center gap-2">
+            <TrendingUp className="text-amber-400" /> Fund Intelligence Engine
           </h1>
-          <p className="text-gray-500 mt-1">Research, compare, and backtest mutual funds</p>
+          <p className="text-slate-500 mt-1">Research, compare, and backtest mutual funds</p>
         </div>
         <div className="flex items-center gap-3">
           {syncStatus && (
-            <span className={`text-xs px-3 py-1 rounded-full ${syncStatus.type === 'success' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
+            <span className={`text-xs px-3 py-1 rounded-full ${syncStatus.type === 'success' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
               {syncStatus.message}
             </span>
           )}
-          <button onClick={handleSync} disabled={syncing} className="flex items-center gap-2 px-4 py-2 bg-[#1B2A4A] text-white rounded-lg text-sm font-medium hover:bg-[#1B2A4A]/90 disabled:opacity-50 transition-colors">
+          <button onClick={handleSync} disabled={syncing} className="flex items-center gap-2 px-4 py-2 bg-surface-600 text-slate-200 border border-white/[0.08] rounded-lg text-sm font-medium hover:bg-surface-500 disabled:opacity-50 transition-colors">
             {syncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
             {syncing ? 'Syncing...' : 'Sync AMFI Data'}
           </button>
@@ -56,13 +56,13 @@ export default function FundIntelligence() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-white border border-gray-100 rounded-xl p-1 mb-6 shadow-sm">
+      <div className="flex gap-1 bg-surface-800 border border-white/[0.07] rounded-xl p-1 mb-6">
         {TABS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             onClick={() => setActiveTab(id)}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex-1 justify-center ${
-              activeTab === id ? 'bg-[#1B2A4A] text-white shadow-sm' : 'text-gray-500 hover:text-[#1B2A4A] hover:bg-gray-50'
+              activeTab === id ? 'bg-amber-500/15 text-amber-400' : 'text-slate-500 hover:text-slate-200 hover:bg-white/[0.04]'
             }`}
           >
             <Icon size={16} />
@@ -115,7 +115,7 @@ function FundSearchTab() {
       <FundSearch onSelect={handleSelect} placeholder="Search by fund name, AMC, or category..." className="max-w-xl" />
 
       {loading && (
-        <div className="flex items-center justify-center py-20 text-gray-400">
+        <div className="flex items-center justify-center py-20 text-slate-500">
           <Loader2 size={24} className="animate-spin mr-3" /> Loading fund data...
         </div>
       )}
@@ -123,39 +123,39 @@ function FundSearchTab() {
       {selectedFund && returns && (
         <div className="mt-6 space-y-6">
           {/* Fund Header */}
-          <div className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm">
-            <h2 className="text-lg font-bold text-[#1B2A4A]">{selectedFund.scheme_name}</h2>
-            <p className="text-sm text-gray-500 mt-1">{selectedFund.scheme_category} · {selectedFund.amc}</p>
+          <div className="bg-surface-800 border border-white/[0.07] rounded-xl p-6">
+            <h2 className="text-lg font-bold text-slate-100">{selectedFund.scheme_name}</h2>
+            <p className="text-sm text-slate-500 mt-1">{selectedFund.scheme_category} · {selectedFund.amc}</p>
             <div className="flex items-center gap-6 mt-4">
               <div>
-                <p className="text-xs text-gray-400 uppercase">Latest NAV</p>
-                <p className="text-xl font-bold text-[#1B2A4A]">{'\u20B9'}{selectedFund.nav}</p>
+                <p className="text-xs text-slate-500 uppercase">Latest NAV</p>
+                <p className="text-xl font-bold text-slate-100">{'\u20B9'}{selectedFund.nav}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-400 uppercase">NAV Date</p>
+                <p className="text-xs text-slate-500 uppercase">NAV Date</p>
                 <p className="text-sm font-medium">{selectedFund.nav_date}</p>
               </div>
             </div>
           </div>
 
           {/* Returns Table */}
-          <div className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm">
-            <h3 className="text-sm font-semibold text-[#1B2A4A] mb-4 uppercase tracking-wide">Returns</h3>
+          <div className="bg-surface-800 border border-white/[0.07] rounded-xl p-6">
+            <h3 className="text-sm font-semibold text-slate-100 mb-4 uppercase tracking-wide">Returns</h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
               {['1M', '3M', '6M', '1Y', '3Y', '5Y', '10Y', 'SI'].map((period) => {
                 const data = returns[period]
                 return (
-                  <div key={period} className="text-center p-3 rounded-lg bg-gray-50">
-                    <p className="text-xs text-gray-400 font-medium">{period}</p>
+                  <div key={period} className="text-center p-3 rounded-lg bg-surface-700">
+                    <p className="text-xs text-slate-500 font-medium">{period}</p>
                     {data ? (
                       <>
-                        <p className={`text-lg font-bold mt-1 ${data.return >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                        <p className={`text-lg font-bold mt-1 ${data.return >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                           {formatPercent(data.return)}
                         </p>
-                        <p className="text-[10px] text-gray-300 mt-0.5">{data.annualized ? 'CAGR' : 'abs'}</p>
+                        <p className="text-[10px] text-slate-600 mt-0.5">{data.annualized ? 'CAGR' : 'abs'}</p>
                       </>
                     ) : (
-                      <p className="text-sm text-gray-300 mt-1">N/A</p>
+                      <p className="text-sm text-slate-600 mt-1">N/A</p>
                     )}
                   </div>
                 )

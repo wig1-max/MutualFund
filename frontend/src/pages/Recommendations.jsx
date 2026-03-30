@@ -8,7 +8,7 @@ import * as api from '../services/api'
 
 function formatProbability(pct) {
   if (pct === null || pct === undefined) return '—'
-  if (pct >= 80) return { value: pct + '%', color: 'text-emerald-600', label: 'High confidence' }
+  if (pct >= 80) return { value: pct + '%', color: 'text-emerald-400', label: 'High confidence' }
   if (pct >= 60) return { value: pct + '%', color: 'text-amber-600', label: 'Moderate confidence' }
   return { value: pct + '%', color: 'text-red-500', label: 'Low confidence — review SIP amount' }
 }
@@ -96,7 +96,7 @@ export default function Recommendations() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="animate-spin text-[#D4A847]" size={32} />
+        <Loader2 className="animate-spin text-amber-400" size={32} />
       </div>
     )
   }
@@ -106,21 +106,21 @@ export default function Recommendations() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-[#1B2A4A] flex items-center justify-center">
-            <Brain className="text-[#D4A847]" size={20} />
+          <div className="w-10 h-10 rounded-lg bg-ink-800 flex items-center justify-center">
+            <Brain className="text-amber-400" size={20} />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-[#1B2A4A]">Fund Recommendations</h1>
-            <p className="text-gray-500 text-sm">{client?.name || 'Client'}</p>
+            <h1 className="text-2xl font-bold text-slate-100">Fund Recommendations</h1>
+            <p className="text-slate-500 text-sm">{client?.name || 'Client'}</p>
           </div>
         </div>
         <div className="flex gap-2">
           <button onClick={() => navigate(`/profile/${clientId}`)}
-            className="flex items-center gap-1.5 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:border-[#D4A847] hover:text-[#1B2A4A]">
+            className="flex items-center gap-1.5 px-4 py-2 border border-white/[0.08] rounded-lg text-sm font-medium text-slate-400 hover:border-amber-500/50 hover:text-slate-200">
             <Edit3 size={14} /> Edit Profile
           </button>
           <button onClick={runEngine} disabled={running}
-            className="flex items-center gap-1.5 px-4 py-2 bg-[#1B2A4A] text-white rounded-lg text-sm font-medium hover:bg-[#2a3f6a] disabled:opacity-50">
+            className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 text-ink-900 rounded-lg text-sm font-semibold hover:bg-amber-400 disabled:opacity-50">
             {running ? <Loader2 size={14} className="animate-spin" /> : recommendations.length > 0 ? <RefreshCw size={14} /> : <Play size={14} />}
             {recommendations.length > 0 ? 'Re-run Engine' : 'Run Engine'}
           </button>
@@ -129,19 +129,19 @@ export default function Recommendations() {
 
       {/* Running State */}
       {running && (
-        <div className="bg-gradient-to-r from-[#1B2A4A] to-[#2a3f6a] rounded-xl p-8 text-center text-white mb-6">
-          <Loader2 className="animate-spin text-[#D4A847] mx-auto mb-3" size={36} />
+        <div className="bg-gradient-to-r from-ink-800 to-ink-600 rounded-xl p-8 text-center text-white mb-6">
+          <Loader2 className="animate-spin text-amber-400 mx-auto mb-3" size={36} />
           <p className="text-lg font-semibold">Scoring Engine Running</p>
-          <p className="text-sm text-gray-300 mt-1">Matching profile against 10,000+ funds</p>
+          <p className="text-sm text-slate-400 mt-1">Matching profile against 10,000+ funds</p>
         </div>
       )}
 
       {!running && !profile && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6 text-center mb-6">
-          <AlertTriangle className="text-yellow-500 mx-auto mb-2" size={28} />
-          <p className="text-yellow-800 font-medium">No profile found for this client</p>
+        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-6 text-center mb-6">
+          <AlertTriangle className="text-amber-400 mx-auto mb-2" size={28} />
+          <p className="text-amber-300 font-medium">No profile found for this client</p>
           <button onClick={() => navigate(`/profile/${clientId}`)}
-            className="mt-3 px-4 py-2 bg-[#D4A847] text-white rounded-lg text-sm font-medium hover:bg-[#c49a3a]">
+            className="mt-3 px-4 py-2 bg-amber-500 text-ink-900 rounded-lg text-sm font-medium hover:bg-amber-400">
             Create Profile
           </button>
         </div>
@@ -152,37 +152,37 @@ export default function Recommendations() {
           {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             {/* Risk Label */}
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-              <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Risk Profile</p>
-              <p className="text-lg font-bold text-[#1B2A4A] mb-2">{profile.risk_label}</p>
-              <div className="w-full bg-gray-200 rounded-full h-2.5">
+            <div className="bg-surface-800 rounded-xl border border-white/[0.07] shadow-sm p-5">
+              <p className="text-xs text-slate-500 uppercase tracking-wide mb-2">Risk Profile</p>
+              <p className="text-lg font-bold text-slate-100 mb-2">{profile.risk_label}</p>
+              <div className="w-full bg-white/[0.08] rounded-full h-2.5">
                 <div className="h-2.5 rounded-full transition-all"
                   style={{
                     width: `${profile.risk_capacity_score}%`,
                     backgroundColor: RISK_COLORS[profile.risk_label] || '#3b82f6',
                   }} />
               </div>
-              <p className="text-xs text-gray-400 mt-1">Score: {profile.risk_capacity_score}/100</p>
+              <p className="text-xs text-slate-500 mt-1">Score: {profile.risk_capacity_score}/100</p>
             </div>
 
             {/* SIP vs Surplus */}
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-              <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Monthly SIP Plan</p>
-              <p className="text-lg font-bold text-[#1B2A4A]">{formatCurrency(totalSIP)}<span className="text-sm text-gray-400 font-normal"> / {formatCurrency(surplus)}</span></p>
-              <div className="w-full bg-gray-200 rounded-full h-2.5 mt-2">
-                <div className={`h-2.5 rounded-full transition-all ${sipPct > 70 ? 'bg-red-500' : 'bg-[#D4A847]'}`}
+            <div className="bg-surface-800 rounded-xl border border-white/[0.07] shadow-sm p-5">
+              <p className="text-xs text-slate-500 uppercase tracking-wide mb-2">Monthly SIP Plan</p>
+              <p className="text-lg font-bold text-slate-100">{formatCurrency(totalSIP)}<span className="text-sm text-slate-500 font-normal"> / {formatCurrency(surplus)}</span></p>
+              <div className="w-full bg-white/[0.08] rounded-full h-2.5 mt-2">
+                <div className={`h-2.5 rounded-full transition-all ${sipPct > 70 ? 'bg-red-500' : 'bg-amber-500'}`}
                   style={{ width: `${Math.min(100, sipPct)}%` }} />
               </div>
               {data?.total_recommended_sip > data?.profile?.investable_surplus * 1.05 && (
-                <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
                   <AlertTriangle size={12} /> Total SIPs exceed investable surplus — consider reducing
                 </p>
               )}
             </div>
 
             {/* Allocation Pie */}
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-              <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Recommended Allocation</p>
+            <div className="bg-surface-800 rounded-xl border border-white/[0.07] shadow-sm p-5">
+              <p className="text-xs text-slate-500 uppercase tracking-wide mb-2">Recommended Allocation</p>
               <div className="flex items-center gap-4">
                 <div className="w-20 h-20">
                   <ResponsiveContainer width="100%" height="100%">
@@ -209,11 +209,11 @@ export default function Recommendations() {
 
           {/* Goal Survival Probability */}
           {data?.survival_analysis && (
-            <div className="bg-[#1B2A4A] rounded-xl p-6 text-white mb-6">
+            <div className="bg-ink-800 rounded-xl border border-white/[0.07] p-6 text-white mb-6">
               {/* Header */}
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <h2 className="text-sm font-semibold uppercase tracking-wide text-[#D4A847] flex items-center gap-2">
+                  <h2 className="text-sm font-semibold uppercase tracking-wide text-amber-400 flex items-center gap-2">
                     ⚡ Goal Survival Probability
                   </h2>
                   <p className="text-gray-400 text-xs mt-1">
@@ -241,7 +241,7 @@ export default function Recommendations() {
               <div className="grid grid-cols-3 gap-4 mb-5">
                 {[
                   { label: 'Worst Case (5th pct)', value: data.survival_analysis.outcomes.worst, color: '#ef4444' },
-                  { label: 'Median Outcome', value: data.survival_analysis.outcomes.median, color: '#D4A847' },
+                  { label: 'Median Outcome', value: data.survival_analysis.outcomes.median, color: '#fbbf24' },
                   { label: 'Best Case (95th pct)', value: data.survival_analysis.outcomes.best, color: '#10b981' },
                 ].map(({ label, value, color }) => (
                   <div key={label} className="bg-white/5 rounded-lg p-4 text-center">
@@ -291,15 +291,15 @@ export default function Recommendations() {
 
           {/* Recommendations Table */}
           {recommendations.length > 0 && (
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden mb-6">
-              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-[#1B2A4A]">Top Fund Picks</h2>
-                {generatedAt && <span className="text-xs text-gray-400">Generated {new Date(generatedAt).toLocaleDateString('en-IN')}</span>}
+            <div className="bg-surface-800 rounded-xl border border-white/[0.07] shadow-sm overflow-hidden mb-6">
+              <div className="px-5 py-4 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-slate-100">Top Fund Picks</h2>
+                {generatedAt && <span className="text-xs text-slate-500">Generated {new Date(generatedAt).toLocaleDateString('en-IN')}</span>}
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-gray-50 text-left text-xs text-gray-500 uppercase tracking-wide">
+                    <tr className="bg-white/[0.02] text-left text-xs text-slate-500 uppercase tracking-wide">
                       <th className="px-4 py-3 w-10">#</th>
                       <th className="px-4 py-3">Fund</th>
                       <th className="px-4 py-3">Bucket</th>
@@ -308,13 +308,13 @@ export default function Recommendations() {
                       <th className="px-4 py-3">Reasons</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-white/[0.04]">
                     {recommendations.map(rec => (
-                      <tr key={rec.id} className="hover:bg-gray-50/50">
-                        <td className="px-4 py-3 font-bold text-[#1B2A4A]">{rec.rank}</td>
+                      <tr key={rec.id} className="hover:bg-white/[0.04]">
+                        <td className="px-4 py-3 font-bold text-slate-100">{rec.rank}</td>
                         <td className="px-4 py-3">
-                          <p className="font-medium text-[#1B2A4A]">{rec.scheme_name}</p>
-                          <p className="text-xs text-gray-400">{rec.category} &middot; {rec.amc}</p>
+                          <p className="font-medium text-slate-100">{rec.scheme_name}</p>
+                          <p className="text-xs text-slate-500">{rec.category} &middot; {rec.amc}</p>
                         </td>
                         <td className="px-4 py-3">
                           <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium text-white"
@@ -326,32 +326,32 @@ export default function Recommendations() {
                           {(() => { const scorePercent = Math.round((rec.composite_score / 80) * 100); return (
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
-                              <div className="w-14 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                              <div className="w-14 h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
                                 <div className="h-full rounded-full"
                                   style={{
                                     width: `${scorePercent}%`,
-                                    backgroundColor: scorePercent > 75 ? '#10b981' : scorePercent > 50 ? '#D4A847' : '#94a3b8'
+                                    backgroundColor: scorePercent > 75 ? '#10b981' : scorePercent > 50 ? '#fbbf24' : '#94a3b8'
                                   }} />
                               </div>
-                              <span className="text-xs font-bold text-[#1B2A4A]">{scorePercent}%</span>
+                              <span className="text-xs font-bold text-slate-100">{scorePercent}%</span>
                             </div>
                             {rec.sortino_ratio != null && (
-                              <p className="text-[9px] text-gray-400">Sortino: {Number(rec.sortino_ratio).toFixed(2)}</p>
+                              <p className="text-[9px] text-slate-500">Sortino: {Number(rec.sortino_ratio).toFixed(2)}</p>
                             )}
                             {rec.jensen_alpha != null && (
-                              <p className={`text-[9px] font-medium ${rec.jensen_alpha > 0 ? 'text-emerald-500' : 'text-red-400'}`}>
+                              <p className={`text-[9px] font-medium ${rec.jensen_alpha > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                                 α: {rec.jensen_alpha > 0 ? '+' : ''}{Number(rec.jensen_alpha).toFixed(2)}%
                               </p>
                             )}
                           </div>
                           ) })()}
                         </td>
-                        <td className="px-4 py-3 text-right font-medium text-[#1B2A4A]">{formatCurrency(rec.recommended_sip || 0)}</td>
+                        <td className="px-4 py-3 text-right font-medium text-slate-100">{formatCurrency(rec.recommended_sip || 0)}</td>
                         <td className="px-4 py-3">
                           <ul className="space-y-0.5">
                             {(Array.isArray(rec.reasons) ? rec.reasons : []).slice(0, 2).map((r, i) => (
-                              <li key={i} className="flex items-start gap-1 text-xs text-gray-500">
-                                <Check size={12} className="text-green-500 mt-0.5 shrink-0" /> {r}
+                              <li key={i} className="flex items-start gap-1 text-xs text-slate-500">
+                                <Check size={12} className="text-emerald-400 mt-0.5 shrink-0" /> {r}
                               </li>
                             ))}
                           </ul>

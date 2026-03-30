@@ -14,15 +14,15 @@ const ICONS = {
 }
 
 const STYLES = {
-  success: 'bg-emerald-50 border-emerald-200 text-emerald-800',
-  error: 'bg-red-50 border-red-200 text-red-800',
-  info: 'bg-blue-50 border-blue-200 text-blue-800',
+  success: 'bg-surface-700 border-emerald-500/30 text-emerald-400',
+  error: 'bg-surface-700 border-red-500/30 text-red-400',
+  info: 'bg-surface-700 border-sky-500/30 text-sky-400',
 }
 
 const ICON_STYLES = {
-  success: 'text-emerald-500',
-  error: 'text-red-500',
-  info: 'text-blue-500',
+  success: 'text-emerald-400',
+  error: 'text-red-400',
+  info: 'text-sky-400',
 }
 
 export function ToastProvider({ children }) {

@@ -48,53 +48,32 @@ export default function Dashboard() {
   }, [])
 
   const statCards = [
-    {
-      title: 'Total Clients',
-      value: stats ? String(stats.totalClients) : '—',
-      icon: Users,
-      color: 'bg-blue-50 text-blue-600',
-    },
-    {
-      title: 'Total AUM',
-      value: totalAum != null ? formatCurrency(totalAum) : '—',
-      icon: IndianRupee,
-      color: 'bg-emerald-50 text-emerald-600',
-    },
-    {
-      title: 'Reviews Due',
-      value: stats ? String(stats.reviewsDueThisWeek) : '—',
-      icon: ClipboardCheck,
-      color: 'bg-amber-50 text-amber-600',
-    },
-    {
-      title: 'Market Pulse',
-      value: 'Nifty 50',
-      icon: BarChart3,
-      color: 'bg-purple-50 text-purple-600',
-      isMarket: true,
-    },
+    { title: 'Total Clients', value: stats ? String(stats.totalClients) : '—', icon: Users, borderColor: 'border-sky-500/40' },
+    { title: 'Total AUM', value: totalAum != null ? formatCurrency(totalAum) : '—', icon: IndianRupee, borderColor: 'border-amber-500/40' },
+    { title: 'Reviews Due', value: stats ? String(stats.reviewsDueThisWeek) : '—', icon: ClipboardCheck, borderColor: 'border-red-500/40' },
+    { title: 'Market Pulse', value: 'Nifty 50', icon: BarChart3, borderColor: 'border-violet-500/40', isMarket: true },
   ]
 
   return (
     <div className="p-8 pt-16 lg:pt-8 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex items-start justify-between mb-8">
+      <div className="flex items-start justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-[#1B2A4A]">Tejova Intelligence Platform v2.0</h1>
-          <p className="text-gray-500 mt-1">India's first AI-powered mutual fund intelligence engine.</p>
+          <h1 className="text-2xl font-bold text-slate-100">Good morning, Aryan</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+          </p>
         </div>
         <button
           onClick={downloadBackup}
-          className="flex items-center gap-2 px-4 py-2 bg-[#1B2A4A] text-white rounded-lg text-sm font-medium hover:bg-[#1B2A4A]/90 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-white/[0.06] hover:bg-white/[0.10] text-slate-300 border border-white/[0.08] rounded-lg text-sm font-medium transition-colors"
         >
           <Download size={16} /> Backup DB
         </button>
       </div>
 
-      {/* Gold Banner */}
-      <div className="bg-[#D4A847] text-[#1B2A4A] text-xs font-semibold py-2 px-4 rounded-xl text-center mb-8">
-        ⚡ Intelligence Engine Active — Scoring 15,000+ funds against every client profile
-      </div>
+      {/* Gold accent bar */}
+      <div className="h-px my-6 opacity-30" style={{ background: 'linear-gradient(90deg, transparent, #f59e0b, transparent)' }} />
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
@@ -103,24 +82,22 @@ export default function Dashboard() {
           return (
             <div
               key={stat.title}
-              className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-shadow"
+              className={`bg-surface-800 border border-white/[0.07] rounded-xl p-5 border-l-2 ${stat.borderColor}`}
             >
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                    {stat.title}
-                  </p>
+                  <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">{stat.title}</p>
                   {stat.isMarket ? (
                     <div className="mt-2">
-                      <p className="text-2xl font-bold text-[#1B2A4A]">{niftyValue}</p>
-                      {niftyDate && <p className="text-[10px] text-gray-400 mt-0.5">NAV as of {niftyDate}</p>}
+                      <p className="text-2xl font-bold text-slate-100 data-num">{niftyValue}</p>
+                      {niftyDate && <p className="text-[10px] text-slate-600 mt-0.5">NAV as of {niftyDate}</p>}
                     </div>
                   ) : (
-                    <p className="text-2xl font-bold text-[#1B2A4A] mt-2">{stat.value}</p>
+                    <p className="text-2xl font-bold text-slate-100 mt-2 data-num">{stat.value}</p>
                   )}
                 </div>
-                <div className={`p-2 rounded-lg ${stat.color}`}>
-                  <Icon size={20} />
+                <div className="p-2 rounded-lg bg-white/[0.04] border border-white/[0.06]">
+                  <Icon size={16} className="text-slate-500" />
                 </div>
               </div>
             </div>
@@ -131,75 +108,70 @@ export default function Dashboard() {
       {/* Intelligence Signals */}
       {profilingSummary && (
         <div className="mb-10">
-          <h2 className="text-lg font-semibold text-[#1B2A4A] mb-4 flex items-center gap-2">
-            <Brain size={20} className="text-[#D4A847]" /> Intelligence Signals
+          <h2 className="text-sm font-semibold text-slate-100 mb-4 flex items-center gap-2">
+            <Brain size={16} className="text-amber-400" /> Intelligence Signals
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-            {/* Profiled Clients */}
-            <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Profiled Clients</p>
-              <p className="text-2xl font-bold text-[#1B2A4A] mt-2">
-                {profilingSummary.profiled_clients}<span className="text-sm text-gray-400 font-normal"> / {profilingSummary.total_clients}</span>
+            <div className="bg-surface-800 border border-white/[0.07] rounded-xl p-5">
+              <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Profiled Clients</p>
+              <p className="text-2xl font-bold text-slate-100 mt-2">
+                {profilingSummary.profiled_clients}<span className="text-sm text-slate-600 font-normal"> / {profilingSummary.total_clients}</span>
               </p>
-              <div className="w-full bg-gray-200 rounded-full h-2 mt-3">
-                <div className="bg-[#D4A847] h-2 rounded-full transition-all" style={{ width: `${profilingSummary.profile_completion_pct}%` }} />
+              <div className="w-full bg-white/[0.06] rounded-full h-2 mt-3">
+                <div className="bg-amber-500 h-2 rounded-full transition-all" style={{ width: `${profilingSummary.profile_completion_pct}%` }} />
               </div>
-              <p className="text-xs text-gray-400 mt-1">{profilingSummary.profile_completion_pct}% complete</p>
+              <p className="text-xs text-slate-600 mt-1">{profilingSummary.profile_completion_pct}% complete</p>
             </div>
 
-            {/* Avg Monthly Surplus */}
-            <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Avg Monthly Surplus</p>
-              <p className="text-2xl font-bold text-[#1B2A4A] mt-2">
+            <div className="bg-surface-800 border border-white/[0.07] rounded-xl p-5">
+              <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Avg Monthly Surplus</p>
+              <p className="text-2xl font-bold text-slate-100 mt-2">
                 {profilingSummary.avg_investable_surplus >= 100000
-                  ? `₹${(profilingSummary.avg_investable_surplus / 100000).toFixed(2)} L`
-                  : `₹${profilingSummary.avg_investable_surplus.toLocaleString('en-IN')}`}
+                  ? `\u20B9${(profilingSummary.avg_investable_surplus / 100000).toFixed(2)} L`
+                  : `\u20B9${profilingSummary.avg_investable_surplus.toLocaleString('en-IN')}`}
               </p>
-              <p className="text-xs text-gray-400 mt-1">across profiled clients</p>
+              <p className="text-xs text-slate-600 mt-1">across profiled clients</p>
             </div>
 
-            {/* Risk Distribution */}
-            <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Risk Distribution</p>
+            <div className="bg-surface-800 border border-white/[0.07] rounded-xl p-5">
+              <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider mb-3">Risk Distribution</p>
               {profilingSummary.by_risk_label && profilingSummary.by_risk_label.length > 0 ? (
                 <div className="space-y-2">
                   {profilingSummary.by_risk_label.map(r => {
                     const maxCount = Math.max(...profilingSummary.by_risk_label.map(x => x.count))
                     return (
                       <div key={r.risk_label} className="flex items-center gap-2">
-                        <span className="text-xs text-gray-600 w-28 truncate">{r.risk_label}</span>
-                        <div className="flex-1 bg-gray-200 rounded-full h-2">
-                          <div className="bg-[#1B2A4A] h-2 rounded-full" style={{ width: `${(r.count / maxCount) * 100}%` }} />
+                        <span className="text-xs text-slate-400 w-28 truncate">{r.risk_label}</span>
+                        <div className="flex-1 bg-white/[0.06] rounded-full h-2">
+                          <div className="bg-amber-500 h-2 rounded-full" style={{ width: `${(r.count / maxCount) * 100}%` }} />
                         </div>
-                        <span className="text-xs font-medium text-[#1B2A4A] w-6 text-right">{r.count}</span>
+                        <span className="text-xs font-medium text-slate-300 w-6 text-right">{r.count}</span>
                       </div>
                     )
                   })}
                 </div>
               ) : (
-                <p className="text-xs text-gray-400">No profiles yet</p>
+                <p className="text-xs text-slate-600">No profiles yet</p>
               )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Quick Actions */}
+      {/* Modules */}
       <div>
-        <h2 className="text-lg font-semibold text-[#1B2A4A] mb-4">Quick Actions</h2>
+        <h2 className="text-sm font-semibold text-slate-100 mb-4">Modules</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
           {quickActions.map(({ label, icon: Icon, to }) => (
             <button
               key={to}
               onClick={() => navigate(to)}
-              className="flex flex-col items-center gap-2 bg-white border border-gray-100 rounded-xl p-5 shadow-sm hover:shadow-md hover:border-[#D4A847]/40 transition-all group"
+              className="flex flex-col items-center gap-2 bg-surface-700 border border-white/[0.06] rounded-xl p-5 hover:bg-surface-600 hover:border-amber-500/20 transition-all group"
             >
-              <div className="p-3 rounded-lg bg-[#1B2A4A]/5 group-hover:bg-[#D4A847]/10 transition-colors">
-                <Icon size={22} className="text-[#1B2A4A] group-hover:text-[#D4A847] transition-colors" />
+              <div className="p-3 rounded-lg bg-white/[0.04]">
+                <Icon size={22} className="text-slate-500 group-hover:text-amber-400 transition-colors" />
               </div>
-              <span className="text-xs font-medium text-gray-600 text-center leading-tight">
-                {label}
-              </span>
+              <span className="text-xs text-slate-400 text-center leading-tight">{label}</span>
             </button>
           ))}
         </div>

@@ -21,8 +21,8 @@ function AuthenticatedApp() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#1B2A4A] flex items-center justify-center">
-        <Loader2 size={24} className="animate-spin text-[#D4A847]" />
+      <div className="min-h-screen bg-surface-900 flex items-center justify-center">
+        <Loader2 size={24} className="animate-spin text-amber-400" />
       </div>
     )
   }
@@ -31,7 +31,7 @@ function AuthenticatedApp() {
 
   return (
     <BrowserRouter>
-      <div className="flex min-h-screen bg-[#f8f9fc]">
+      <div className="flex min-h-screen bg-surface-900">
         <Sidebar />
         <main className="flex-1 overflow-y-auto">
           <ClientProvider>

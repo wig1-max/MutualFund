@@ -13,18 +13,18 @@ const RISK_PROFILES = ['Conservative', 'Moderate', 'Aggressive']
 const REVIEW_FREQUENCIES = ['Monthly', 'Quarterly', 'Half-yearly', 'Annual']
 
 const TAG_COLORS = {
-  HNI: 'bg-amber-50 text-amber-700',
-  Salaried: 'bg-blue-50 text-blue-700',
-  'Business Owner': 'bg-purple-50 text-purple-700',
-  NRI: 'bg-emerald-50 text-emerald-700',
-  'Senior Citizen': 'bg-orange-50 text-orange-700',
-  'New Investor': 'bg-cyan-50 text-cyan-700',
+  HNI: 'bg-amber-500/10 text-amber-400 border border-amber-500/20',
+  Salaried: 'bg-sky-500/10 text-sky-400 border border-sky-500/20',
+  'Business Owner': 'bg-violet-500/10 text-violet-400 border border-violet-500/20',
+  NRI: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20',
+  'Senior Citizen': 'bg-amber-500/10 text-amber-300 border border-amber-500/20',
+  'New Investor': 'bg-sky-500/10 text-sky-300 border border-sky-500/20',
 }
 
 const RISK_COLORS = {
-  Conservative: 'bg-green-50 text-green-700',
-  Moderate: 'bg-yellow-50 text-yellow-700',
-  Aggressive: 'bg-red-50 text-red-700',
+  Conservative: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20',
+  Moderate: 'bg-amber-500/10 text-amber-400 border border-amber-500/20',
+  Aggressive: 'bg-red-500/10 text-red-400 border border-red-500/20',
 }
 
 export default function ClientCRM() {
@@ -117,14 +117,14 @@ export default function ClientCRM() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-[#1B2A4A] flex items-center gap-2">
-            <Users className="text-[#D4A847]" /> Client CRM
+          <h1 className="text-2xl font-bold text-slate-100 flex items-center gap-2">
+            <Users className="text-amber-400" /> Client CRM
           </h1>
-          <p className="text-gray-500 mt-1">Manage clients, track reviews, and maintain relationships</p>
+          <p className="text-slate-500 mt-1">Manage clients, track reviews, and maintain relationships</p>
         </div>
         <button
           onClick={() => { setEditingClient(null); setShowForm(true) }}
-          className="flex items-center gap-2 px-4 py-2.5 bg-[#D4A847] text-white rounded-lg text-sm font-medium hover:bg-[#c49a2e] transition-colors"
+          className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-ink-900 font-semibold shadow-lg shadow-amber-500/20 rounded-lg text-sm hover:bg-amber-400 transition-colors"
         >
           <UserPlus size={16} /> Add Client
         </button>
@@ -133,20 +133,20 @@ export default function ClientCRM() {
       {/* Stats Cards */}
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-          <StatCard label="Total Clients" value={stats.totalClients} icon={Users} color="bg-blue-50 text-blue-600" />
-          <StatCard label="Reviews Due (7d)" value={stats.reviewsDueThisWeek} icon={Clock} color="bg-amber-50 text-amber-600" />
+          <StatCard label="Total Clients" value={stats.totalClients} icon={Users} color="bg-sky-500/10 text-sky-400" />
+          <StatCard label="Reviews Due (7d)" value={stats.reviewsDueThisWeek} icon={Clock} color="bg-amber-500/10 text-amber-400" />
           <StatCard
             label="Risk Split"
             value={stats.byRiskProfile?.map(r => `${r.count} ${r.risk_profile?.charAt(0)}`).join(' / ') || '—'}
             icon={Shield}
-            color="bg-purple-50 text-purple-600"
+            color="bg-violet-500/10 text-violet-400"
             small
           />
           <StatCard
             label="Top Tags"
             value={Object.entries(stats.tagCounts || {}).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([t, c]) => `${t}: ${c}`).join(', ') || '—'}
             icon={Filter}
-            color="bg-emerald-50 text-emerald-600"
+            color="bg-emerald-500/10 text-emerald-400"
             small
           />
         </div>
@@ -156,35 +156,35 @@ export default function ClientCRM() {
         {/* Client List */}
         <div className={`${selectedClient ? 'lg:w-1/2' : 'w-full'} w-full transition-all`}>
           {/* Search & Filters */}
-          <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm mb-4">
+          <div className="bg-surface-800 border border-white/[0.07] rounded-xl p-4 mb-4">
             <div className="flex gap-3">
               <div className="relative flex-1">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                 <input
                   type="text"
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
                   placeholder="Search by name, phone, or email..."
-                  className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40 focus:border-[#D4A847]"
+                  className="w-full pl-9 pr-4 py-2 bg-surface-700 border border-white/[0.08] text-slate-200 placeholder-slate-600 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-amber-500/20 focus:border-amber-500/50"
                 />
               </div>
               <button
                 onClick={() => setShowFilters(!showFilters)}
                 className={`flex items-center gap-2 px-3 py-2 border rounded-lg text-sm transition-colors ${
                   showFilters || filterTag || filterRisk || filterReviewDue
-                    ? 'border-[#D4A847] bg-[#D4A847]/5 text-[#D4A847]'
-                    : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                    ? 'border-amber-500/40 bg-amber-500/10 text-amber-400'
+                    : 'border-white/[0.08] text-slate-500 hover:bg-white/[0.04]'
                 }`}
               >
                 <Filter size={14} /> Filters
               </button>
             </div>
             {showFilters && (
-              <div className="flex flex-wrap gap-3 mt-3 pt-3 border-t border-gray-100">
+              <div className="flex flex-wrap gap-3 mt-3 pt-3 border-t border-white/[0.06]">
                 <select
                   value={filterTag}
                   onChange={(e) => setFilterTag(e.target.value)}
-                  className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40"
+                  className="px-3 py-1.5 bg-surface-700 border border-white/[0.08] rounded-lg text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500/20"
                 >
                   <option value="">All Tags</option>
                   {TAGS.map(t => <option key={t} value={t}>{t}</option>)}
@@ -246,7 +246,7 @@ export default function ClientCRM() {
                     <div className="flex items-center justify-between">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <h3 className="text-sm font-semibold text-[#1B2A4A] truncate">{client.name}</h3>
+                          <h3 className="text-sm font-semibold text-slate-100 truncate">{client.name}</h3>
                           {reviewDue && (
                             <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 bg-amber-50 text-amber-600 rounded-full font-medium">
                               <AlertCircle size={10} /> Review due
@@ -320,7 +320,7 @@ function StatCard({ label, value, icon: Icon, color, small }) {
       <div className="flex items-start justify-between">
         <div>
           <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">{label}</p>
-          <p className={`${small ? 'text-xs mt-2 text-gray-600' : 'text-2xl font-bold text-[#1B2A4A] mt-1'}`}>{value}</p>
+          <p className={`${small ? 'text-xs mt-2 text-gray-600' : 'text-2xl font-bold text-slate-100 mt-1'}`}>{value}</p>
         </div>
         <div className={`p-2 rounded-lg ${color}`}><Icon size={18} /></div>
       </div>
@@ -378,9 +378,9 @@ function ClientDetailPanel({ client, onClose, onEdit, onDelete, onUpdate }) {
       {/* Header */}
       <div className="sticky top-0 bg-white border-b border-gray-100 p-5 z-10">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-[#1B2A4A]">{client.name}</h2>
+          <h2 className="text-lg font-bold text-slate-100">{client.name}</h2>
           <div className="flex items-center gap-2">
-            <button onClick={onEdit} className="p-1.5 text-gray-400 hover:text-[#D4A847] transition-colors" title="Edit">
+            <button onClick={onEdit} className="p-1.5 text-gray-400 hover:text-amber-400 transition-colors" title="Edit">
               <Edit3 size={16} />
             </button>
             <button onClick={onDelete} className="p-1.5 text-gray-400 hover:text-red-500 transition-colors" title="Delete">
@@ -420,7 +420,7 @@ function ClientDetailPanel({ client, onClose, onEdit, onDelete, onUpdate }) {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-gray-400 font-medium uppercase">Next Review</p>
-              <p className={`text-sm font-semibold mt-0.5 ${reviewDue ? 'text-amber-700' : 'text-[#1B2A4A]'}`}>
+              <p className={`text-sm font-semibold mt-0.5 ${reviewDue ? 'text-amber-700' : 'text-slate-100'}`}>
                 {client.next_review_date ? formatDate(client.next_review_date) : 'Not scheduled'}
               </p>
               <p className="text-xs text-gray-400 mt-0.5">Frequency: {client.review_frequency}</p>
@@ -437,7 +437,7 @@ function ClientDetailPanel({ client, onClose, onEdit, onDelete, onUpdate }) {
 
         {/* Notes */}
         <div>
-          <h3 className="text-sm font-semibold text-[#1B2A4A] mb-3 flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-slate-100 mb-3 flex items-center gap-2">
             <MessageSquare size={14} /> Notes ({client.notes?.length || 0})
           </h3>
 
@@ -493,7 +493,7 @@ function InfoField({ label, value, icon: Icon, badge }) {
       {badge ? (
         <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium mt-0.5 ${badge}`}>{value}</span>
       ) : (
-        <p className="text-sm text-[#1B2A4A] mt-0.5 flex items-center gap-1.5">
+        <p className="text-sm text-slate-100 mt-0.5 flex items-center gap-1.5">
           {Icon && <Icon size={12} className="text-gray-300" />}
           {value || '—'}
         </p>
@@ -547,7 +547,7 @@ function ClientFormModal({ client, onClose, onSave }) {
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
-          <h2 className="text-lg font-bold text-[#1B2A4A]">{client ? 'Edit Client' : 'Add New Client'}</h2>
+          <h2 className="text-lg font-bold text-slate-100">{client ? 'Edit Client' : 'Add New Client'}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
         </div>
 

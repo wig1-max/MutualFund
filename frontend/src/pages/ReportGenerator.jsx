@@ -49,15 +49,15 @@ function renderMarkdown(text) {
   if (!text) return ''
   let html = text
     // Headers
-    .replace(/^### (.+)$/gm, '<h3 class="text-lg font-semibold text-[#1B2A4A] mt-6 mb-2">$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2 class="text-xl font-bold text-[#1B2A4A] mt-8 mb-3 pb-2 border-b border-gray-200">$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1 class="text-2xl font-bold text-[#1B2A4A] mt-6 mb-4">$1</h1>')
+    .replace(/^### (.+)$/gm, '<h3 class="text-lg font-semibold text-slate-100 mt-6 mb-2">$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2 class="text-xl font-bold text-slate-100 mt-8 mb-3 pb-2 border-b border-white/[0.08]">$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1 class="text-2xl font-bold text-slate-100 mt-6 mb-4">$1</h1>')
     // Bold and italic
     .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong class="text-[#1B2A4A]">$1</strong>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong class="text-slate-100">$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
     // Horizontal rules
-    .replace(/^---$/gm, '<hr class="my-6 border-gray-200" />')
+    .replace(/^---$/gm, '<hr class="my-6 border-white/[0.08]" />')
     // Bullet points (handle nested)
     .replace(/^(\s*)[-*] (.+)$/gm, (_, spaces, content) => {
       const indent = spaces.length > 1 ? 'ml-6' : ''
@@ -66,11 +66,11 @@ function renderMarkdown(text) {
     // Numbered lists
     .replace(/^\d+\.\s(.+)$/gm, '<li class="flex items-start gap-2 mb-1"><span class="text-[#D4A847] font-semibold shrink-0">&#8226;</span><span>$1</span></li>')
     // Paragraphs (double newline)
-    .replace(/\n\n/g, '</p><p class="mb-3 text-gray-700 leading-relaxed">')
+    .replace(/\n\n/g, '</p><p class="mb-3 text-slate-300 leading-relaxed">')
     // Single newlines within lists — keep as is
     .replace(/\n/g, '<br/>')
 
-  return `<p class="mb-3 text-gray-700 leading-relaxed">${html}</p>`
+  return `<p class="mb-3 text-slate-300 leading-relaxed">${html}</p>`
 }
 
 export default function ReportGenerator() {
@@ -171,12 +171,12 @@ export default function ReportGenerator() {
     <div className="p-4 lg:p-8 pt-16 lg:pt-8 max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
-        <div className="p-2.5 bg-gradient-to-br from-[#1B2A4A] to-[#2a3f6e] rounded-xl text-[#D4A847]">
+        <div className="p-2.5 bg-gradient-to-br from-ink-800 to-ink-600 rounded-xl text-amber-400">
           <FileText size={24} />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-[#1B2A4A]">AI Report Generator</h1>
-          <p className="text-sm text-gray-500">Generate branded client reports powered by AI</p>
+          <h1 className="text-2xl font-bold text-slate-100">AI Report Generator</h1>
+          <p className="text-sm text-slate-500">Generate branded client reports powered by AI</p>
         </div>
       </div>
 
@@ -184,12 +184,12 @@ export default function ReportGenerator() {
       {!report && (
         <div className="space-y-6">
           {/* Client Selector */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <label className="block text-sm font-semibold text-[#1B2A4A] mb-2">Select Client</label>
+          <div className="bg-surface-800 rounded-xl border border-white/[0.07] p-6">
+            <label className="block text-sm font-semibold text-slate-100 mb-2">Select Client</label>
             <select
               value={selectedClientId}
               onChange={(e) => setSelectedClientId(e.target.value)}
-              className="w-full md:w-96 px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#D4A847]/40 focus:border-[#D4A847] outline-none text-sm"
+              className="w-full md:w-96 px-4 py-2.5 bg-surface-700 border border-white/[0.08] rounded-lg text-slate-200 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 outline-none text-sm"
             >
               <option value="">-- Choose a client --</option>
               {clients.map(c => (
@@ -200,7 +200,7 @@ export default function ReportGenerator() {
 
           {/* Report Type Selector */}
           <div>
-            <h2 className="text-sm font-semibold text-[#1B2A4A] mb-3">Report Type</h2>
+            <h2 className="text-sm font-semibold text-slate-100 mb-3">Report Type</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {REPORT_TYPES.map(type => {
                 const Icon = type.icon
@@ -211,12 +211,12 @@ export default function ReportGenerator() {
                     onClick={() => setSelectedType(type.id)}
                     className={`relative text-left p-4 rounded-xl border-2 transition-all ${
                       isSelected
-                        ? 'border-[#D4A847] bg-[#D4A847]/5 shadow-md'
-                        : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
+                        ? 'border-amber-500 bg-amber-500/5 shadow-md'
+                        : 'border-white/[0.08] bg-surface-800 hover:border-white/[0.12]'
                     }`}
                   >
                     {isSelected && (
-                      <div className="absolute top-2 right-2 w-5 h-5 bg-[#D4A847] rounded-full flex items-center justify-center">
+                      <div className="absolute top-2 right-2 w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center">
                         <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                         </svg>
@@ -225,8 +225,8 @@ export default function ReportGenerator() {
                     <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${type.color} flex items-center justify-center mb-3`}>
                       <Icon size={20} className="text-white" />
                     </div>
-                    <h3 className="font-semibold text-[#1B2A4A] text-sm">{type.label}</h3>
-                    <p className="text-xs text-gray-500 mt-1 leading-relaxed">{type.description}</p>
+                    <h3 className="font-semibold text-slate-100 text-sm">{type.label}</h3>
+                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">{type.description}</p>
                   </button>
                 )
               })}
@@ -234,13 +234,13 @@ export default function ReportGenerator() {
           </div>
 
           {/* Custom Instructions (collapsible) */}
-          <div className="bg-white rounded-xl border border-gray-200">
+          <div className="bg-surface-800 rounded-xl border border-white/[0.07]">
             <button
               onClick={() => setShowInstructions(!showInstructions)}
               className="w-full flex items-center justify-between p-4 text-left"
             >
-              <span className="text-sm font-semibold text-[#1B2A4A]">Custom Instructions (Optional)</span>
-              {showInstructions ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+              <span className="text-sm font-semibold text-slate-100">Custom Instructions (Optional)</span>
+              {showInstructions ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
             </button>
             {showInstructions && (
               <div className="px-4 pb-4">
@@ -249,7 +249,7 @@ export default function ReportGenerator() {
                   onChange={(e) => setCustomInstructions(e.target.value)}
                   placeholder="E.g., 'Focus on retirement readiness', 'Highlight underperformers', 'Client is risk-averse, emphasize debt allocation'..."
                   rows={3}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#D4A847]/40 focus:border-[#D4A847] outline-none text-sm resize-none"
+                  className="w-full px-4 py-2.5 bg-surface-700 border border-white/[0.08] rounded-lg text-slate-200 placeholder-slate-600 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 outline-none text-sm resize-none"
                 />
               </div>
             )}
@@ -259,7 +259,7 @@ export default function ReportGenerator() {
           <button
             onClick={handleGenerate}
             disabled={generating || !selectedClientId}
-            className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-[#1B2A4A] to-[#2a3f6e] text-white rounded-xl font-semibold text-sm hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-amber-500 to-amber-600 text-ink-900 rounded-xl font-semibold text-sm hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {generating ? (
               <>
@@ -276,10 +276,10 @@ export default function ReportGenerator() {
 
           {/* Generating state */}
           {generating && (
-            <div className="bg-gradient-to-r from-[#1B2A4A]/5 to-[#D4A847]/5 rounded-xl p-8 text-center">
-              <Loader2 size={40} className="animate-spin text-[#D4A847] mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-[#1B2A4A]">Generating your report...</h3>
-              <p className="text-sm text-gray-500 mt-1">AI is analyzing client data and crafting personalized insights</p>
+            <div className="bg-white/[0.03] rounded-xl p-8 text-center">
+              <Loader2 size={40} className="animate-spin text-amber-400 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-slate-100">Generating your report...</h3>
+              <p className="text-sm text-slate-500 mt-1">AI is analyzing client data and crafting personalized insights</p>
             </div>
           )}
         </div>
@@ -289,19 +289,19 @@ export default function ReportGenerator() {
       {report && (
         <div className="space-y-4">
           {/* Report Actions Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-white rounded-xl border border-gray-200 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-800 rounded-xl border border-white/[0.07] p-4">
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 text-sm text-gray-600">
+              <div className="flex items-center gap-2 text-sm text-slate-400">
                 <User size={14} />
-                <span className="font-semibold text-[#1B2A4A]">{report.client.name}</span>
+                <span className="font-semibold text-slate-100">{report.client.name}</span>
               </div>
-              <span className="text-gray-300">|</span>
-              <div className="flex items-center gap-2 text-sm text-gray-600">
+              <span className="text-slate-700">|</span>
+              <div className="flex items-center gap-2 text-sm text-slate-400">
                 <FileText size={14} />
                 {report.reportLabel}
               </div>
-              <span className="text-gray-300">|</span>
-              <div className="flex items-center gap-2 text-sm text-gray-500">
+              <span className="text-slate-700">|</span>
+              <div className="flex items-center gap-2 text-sm text-slate-400">
                 <Calendar size={14} />
                 {new Date(report.generatedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
               </div>
@@ -309,13 +309,13 @@ export default function ReportGenerator() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setReport(null)}
-                className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                className="px-4 py-2 text-sm border border-white/[0.08] rounded-lg hover:bg-white/[0.05] text-slate-400 transition-colors"
               >
                 New Report
               </button>
               <button
                 onClick={handlePrint}
-                className="flex items-center gap-2 px-4 py-2 text-sm bg-[#1B2A4A] text-white rounded-lg hover:bg-[#243558] transition-colors"
+                className="flex items-center gap-2 px-4 py-2 text-sm bg-ink-700 text-slate-200 rounded-lg hover:bg-ink-600 transition-colors"
               >
                 <Printer size={14} />
                 Print / Save PDF
@@ -324,7 +324,7 @@ export default function ReportGenerator() {
           </div>
 
           {/* Report Content */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+          <div className="bg-surface-800 rounded-xl border border-white/[0.07] shadow-sm">
             {/* Branded Header */}
             <div className="bg-gradient-to-r from-[#1B2A4A] to-[#2a3f6e] rounded-t-xl px-8 py-6">
               <div className="flex items-center justify-between">
@@ -349,23 +349,23 @@ export default function ReportGenerator() {
 
             {/* Summary Cards (from raw data) */}
             {report.data?.portfolioSummary && report.data.portfolioSummary.holdingsCount > 0 && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-gray-100 border-b border-gray-200">
-                <div className="bg-white p-4 text-center">
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">Invested</p>
-                  <p className="text-lg font-bold text-[#1B2A4A]">{formatCurrency(report.data.portfolioSummary.totalInvested)}</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-surface-700 border-b border-white/[0.07]">
+                <div className="bg-surface-800 p-4 text-center">
+                  <p className="text-xs text-slate-500 uppercase tracking-wide">Invested</p>
+                  <p className="text-lg font-bold text-slate-100">{formatCurrency(report.data.portfolioSummary.totalInvested)}</p>
                 </div>
-                <div className="bg-white p-4 text-center">
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">Current Value</p>
-                  <p className="text-lg font-bold text-[#1B2A4A]">{formatCurrency(report.data.portfolioSummary.currentValue)}</p>
+                <div className="bg-surface-800 p-4 text-center">
+                  <p className="text-xs text-slate-500 uppercase tracking-wide">Current Value</p>
+                  <p className="text-lg font-bold text-slate-100">{formatCurrency(report.data.portfolioSummary.currentValue)}</p>
                 </div>
-                <div className="bg-white p-4 text-center">
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">Total Gain</p>
+                <div className="bg-surface-800 p-4 text-center">
+                  <p className="text-xs text-slate-500 uppercase tracking-wide">Total Gain</p>
                   <p className={`text-lg font-bold ${report.data.portfolioSummary.totalGain >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                     {formatCurrency(report.data.portfolioSummary.totalGain)}
                   </p>
                 </div>
-                <div className="bg-white p-4 text-center">
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">Returns</p>
+                <div className="bg-surface-800 p-4 text-center">
+                  <p className="text-xs text-slate-500 uppercase tracking-wide">Returns</p>
                   <p className={`text-lg font-bold ${report.data.portfolioSummary.gainPercent >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                     {report.data.portfolioSummary.gainPercent}%
                   </p>
@@ -381,8 +381,8 @@ export default function ReportGenerator() {
             />
 
             {/* Footer */}
-            <div className="px-8 py-4 bg-gray-50 rounded-b-xl border-t border-gray-200">
-              <div className="flex items-center gap-2 text-xs text-gray-400">
+            <div className="px-8 py-4 bg-white/[0.03] rounded-b-xl border-t border-white/[0.06]">
+              <div className="flex items-center gap-2 text-xs text-slate-400">
                 <Sparkles size={12} />
                 <span>Generated by Tejova AI Report Engine | This is a computer-generated report</span>
               </div>
@@ -390,9 +390,9 @@ export default function ReportGenerator() {
           </div>
 
           {/* SEBI Disclaimer */}
-          <div className="flex items-start gap-2 p-4 bg-amber-50 rounded-xl border border-amber-200">
-            <AlertTriangle size={16} className="text-amber-600 mt-0.5 shrink-0" />
-            <p className="text-xs text-amber-700 leading-relaxed">
+          <div className="flex items-start gap-2 p-4 bg-amber-500/10 rounded-xl border border-amber-500/20">
+            <AlertTriangle size={16} className="text-amber-400 mt-0.5 shrink-0" />
+            <p className="text-xs text-amber-400 leading-relaxed">
               <strong>Disclaimer:</strong> Mutual fund investments are subject to market risks. Please read all scheme related documents carefully before investing. Past performance is not indicative of future returns. This report is for informational purposes only and should not be considered as investment advice. Tax calculations are estimates based on Budget 2024 rules and may vary based on individual circumstances.
             </p>
           </div>

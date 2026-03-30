@@ -328,24 +328,32 @@ export function sortinoRatio(navData, riskFreeRate = 6, periodYears = 3) {
 
   const dailyReturns = []
   for (let i = 1; i < filtered.length; i++) {
-    dailyReturns.push((filtered[i].nav - filtered[i - 1].nav) / filtered[i - 1].nav)
+    dailyReturns.push(
+      (filtered[i].nav - filtered[i - 1].nav) / filtered[i - 1].nav
+    )
   }
 
-  const downsideReturns = dailyReturns.filter(r => r < 0)
-  if (downsideReturns.length < 5) return null
+  // Daily MAR = annualised risk-free rate converted to daily
+  const dailyMar = riskFreeRate / 100 / 252
 
-  const downsideVariance = downsideReturns.reduce((s, r) => s + r * r, 0) / downsideReturns.length
-  const downsideDev = Math.sqrt(downsideVariance)
+  // Downside deviation: penalise returns BELOW MAR (not below zero)
+  // Divide by TOTAL days — not just days with shortfalls
+  const downsideSquaredSum = dailyReturns.reduce((s, r) => {
+    const shortfall = Math.min(0, r - dailyMar)
+    return s + shortfall * shortfall
+  }, 0)
+
+  const downsideDev = Math.sqrt(downsideSquaredSum / dailyReturns.length)
   if (downsideDev === 0) return null
 
-  const annualisedDev = downsideDev * Math.sqrt(252)
+  const annualisedDownsideDev = downsideDev * Math.sqrt(252)
 
   const returns = calculateReturns(navData)
   const key = periodYears >= 5 ? '5Y' : periodYears >= 3 ? '3Y' : '1Y'
   const annualisedReturn = returns[key]?.return
   if (annualisedReturn == null) return null
 
-  return (annualisedReturn - riskFreeRate) / (annualisedDev * 100)
+  return (annualisedReturn - riskFreeRate) / (annualisedDownsideDev * 100)
 }
 
 // Calmar ratio — annualised return / max drawdown

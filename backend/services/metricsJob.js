@@ -2,6 +2,7 @@ import { getDb } from '../db/index.js'
 import { calculateReturns, standardDeviation, maxDrawdown,
          sharpeRatio, sortinoRatio, calmarRatio,
          fundAgeYears } from './calculations.js'
+import { getCategoryRiskLevel } from '../utils/fundClassification.js'
 
 const BATCH_SIZE = 20
 const BATCH_DELAY_MS = 500
@@ -116,7 +117,7 @@ export async function runMetricsJob() {
           return1y,
           return3y,
           return5y,
-          fundInfo?.scheme_category || null,
+          fundInfo ? getCategoryRiskLevel(fundInfo.scheme_category) : null,
           dataQualityScore,
           Math.round(ageYears * 10) / 10,
           navDataPoints,

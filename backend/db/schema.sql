@@ -108,6 +108,8 @@ CREATE TABLE IF NOT EXISTS client_profiles (
   existing_pf_balance REAL,
   investable_surplus REAL,
   risk_capacity_score REAL,
+  risk_tolerance_score REAL,
+  risk_effective_score REAL,
   risk_label TEXT,
   recommended_equity_pct REAL,
   recommended_debt_pct REAL,

@@ -51,6 +51,22 @@ export function getDb() {
     if (!columns.includes('portfolio_pe')) {
       db.exec('ALTER TABLE fund_metrics ADD COLUMN portfolio_pe REAL')
     }
+
+    // Migration: add risk score columns to client_profiles
+    const profileColumns = db.prepare(
+      "PRAGMA table_info(client_profiles)"
+    ).all().map(c => c.name)
+
+    if (!profileColumns.includes('risk_tolerance_score')) {
+      db.exec(
+        'ALTER TABLE client_profiles ADD COLUMN risk_tolerance_score REAL'
+      )
+    }
+    if (!profileColumns.includes('risk_effective_score')) {
+      db.exec(
+        'ALTER TABLE client_profiles ADD COLUMN risk_effective_score REAL'
+      )
+    }
   }
   return db
 }

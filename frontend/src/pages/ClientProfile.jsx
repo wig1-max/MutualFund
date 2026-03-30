@@ -33,6 +33,7 @@ export default function ClientProfile() {
   const [saving, setSaving] = useState(false)
   const [client, setClient] = useState(null)
   const [profileComplete, setProfileComplete] = useState(false)
+  const [riskScores, setRiskScores] = useState(null)
 
   const [form, setForm] = useState({
     monthly_income: '',
@@ -63,6 +64,12 @@ export default function ClientProfile() {
         if (profileData.profile) {
           const p = profileData.profile
           setProfileComplete(!!p.profile_complete)
+          setRiskScores({
+            capacity: p.risk_capacity_score,
+            tolerance: p.risk_tolerance_score,
+            effective: p.risk_effective_score,
+            label: p.risk_label,
+          })
           setForm(prev => ({
             ...prev,
             monthly_income: p.monthly_income || '',
@@ -120,7 +127,16 @@ export default function ClientProfile() {
         emergency_fund_months: Number(form.emergency_fund_months) || 0,
       }
       const result = await api.saveClientProfile(clientId, payload)
-      if (result.profile?.profile_complete) setProfileComplete(true)
+      if (result.profile) {
+        const p = result.profile
+        if (p.profile_complete) setProfileComplete(true)
+        setRiskScores({
+          capacity: p.risk_capacity_score,
+          tolerance: p.risk_tolerance_score,
+          effective: p.risk_effective_score,
+          label: p.risk_label,
+        })
+      }
 
       if (step < STEPS.length - 1) {
         setStep(step + 1)
@@ -158,6 +174,41 @@ export default function ClientProfile() {
           </span>
         )}
       </div>
+
+      {/* Risk Score Breakdown */}
+      {riskScores && riskScores.capacity != null && (
+        <div className="bg-surface-800 rounded-xl border border-white/[0.07] shadow-sm p-5 mb-6">
+          <h3 className="text-sm font-semibold text-slate-300 mb-3">Risk Assessment</h3>
+          <div className="space-y-3">
+            <ScoreRow label="Financial Capacity" value={riskScores.capacity} />
+            {riskScores.tolerance != null ? (
+              <ScoreRow label="Behavioral Tolerance" value={riskScores.tolerance} />
+            ) : (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-400">Behavioral Tolerance</span>
+                <span className="text-sm text-amber-400 italic">Questionnaire pending</span>
+              </div>
+            )}
+            {riskScores.effective != null && (
+              <div className="pt-2 border-t border-white/[0.07]">
+                <ScoreRow label="Effective Risk Score" value={riskScores.effective} highlight />
+                <div className="flex items-center justify-between mt-1">
+                  <span className="text-xs text-slate-500">Risk Label</span>
+                  <span className="text-sm font-semibold text-amber-400">{riskScores.label}</span>
+                </div>
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-slate-600 mt-3">
+            Per NISM guidelines, the lower of Capacity and Tolerance is used for fund recommendations.
+          </p>
+          {riskScores.tolerance == null && (
+            <p className="text-xs text-amber-500 mt-2">
+              Complete the risk questionnaire to unlock fund recommendations.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Step Progress */}
       <div className="flex items-center gap-1 mb-8">
@@ -327,6 +378,19 @@ function NumberField({ label, value, onChange }) {
       <input type="number" value={value} onChange={e => onChange(e.target.value)}
         className="w-full border border-white/[0.08] bg-surface-700 text-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20"
         min={0} />
+    </div>
+  )
+}
+
+function ScoreRow({ label, value, highlight }) {
+  const pct = Math.max(0, Math.min(100, value))
+  return (
+    <div className="flex items-center gap-3">
+      <span className={`text-sm w-44 shrink-0 ${highlight ? 'text-slate-200 font-semibold' : 'text-slate-400'}`}>{label}</span>
+      <div className="flex-1 h-2 bg-white/[0.06] rounded-full overflow-hidden">
+        <div className="h-full bg-amber-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+      </div>
+      <span className={`text-sm w-14 text-right font-mono ${highlight ? 'text-amber-400 font-semibold' : 'text-slate-300'}`}>{Math.round(value)}/100</span>
     </div>
   )
 }

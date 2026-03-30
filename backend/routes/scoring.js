@@ -5,7 +5,7 @@ import { fetchNavHistory } from '../services/mfapi.js'
 import { calculateReturns, standardDeviation, maxDrawdown,
          sharpeRatio, sortinoRatio, calmarRatio,
          jensensAlpha, fundAgeYears } from '../services/calculations.js'
-import { getCategoryRiskLevel } from '../utils/fundClassification.js'
+import { getCategoryRiskLevel, getBenchmarkSchemeCode } from '../utils/fundClassification.js'
 
 const router = Router()
 
@@ -136,15 +136,30 @@ router.post('/scoring/enrich-metrics/:schemeCode', async (req, res) => {
       })
     }
 
-    // Fetch Nifty 500 benchmark (scheme code 118989 is Axis Bluechip
-    // as proxy — replace with actual Nifty 500 index fund later)
-    // Use scheme code 100356 (UTI Nifty 50 Index) as benchmark proxy
     let benchmarkData = null
-    try {
-      const benchResult = await fetchNavHistory('100356')
-      benchmarkData = benchResult.data
-    } catch (e) {
-      console.warn('Benchmark fetch failed, skipping alpha calculation')
+    const fundInfoForBenchmark = db.prepare(
+      'SELECT scheme_category FROM funds WHERE scheme_code = ?'
+    ).get(schemeCode)
+    const benchmarkCode = getBenchmarkSchemeCode(
+      fundInfoForBenchmark?.scheme_category
+    )
+    if (benchmarkCode) {
+      try {
+        const benchResult = await fetchNavHistory(benchmarkCode)
+        benchmarkData = benchResult.data
+        console.log(
+          `[EnrichMetrics] ${schemeCode} category="${fundInfoForBenchmark?.scheme_category}" → benchmark=${benchmarkCode}`
+        )
+      } catch (e) {
+        console.warn(
+          `[EnrichMetrics] Benchmark ${benchmarkCode} fetch failed for ${schemeCode}: ${e.message}`
+        )
+      }
+    } else {
+      console.log(
+        `[EnrichMetrics] No benchmark applicable for ${schemeCode} ` +
+        `(category: ${fundInfoForBenchmark?.scheme_category}) — skipping alpha`
+      )
     }
 
     // Compute all metrics

@@ -110,3 +110,47 @@ export function isPassiveFund(name, category) {
     lower.includes('nifty') || lower.includes('sensex') || lower.includes('passive')
   )
 }
+
+/**
+ * Returns the appropriate benchmark scheme code for Jensen's Alpha.
+ * Returns null for categories where alpha vs equity benchmark is meaningless.
+ */
+export function getBenchmarkSchemeCode(category) {
+  if (!category) return null
+  const lower = category.toLowerCase()
+
+  // Debt and cash-like funds — alpha not meaningful vs equity benchmark
+  if (
+    lower.includes('liquid') || lower.includes('overnight') ||
+    lower.includes('money market') || lower.includes('debt') ||
+    lower.includes('gilt') || lower.includes('corporate bond') ||
+    lower.includes('banking and psu') || lower.includes('credit risk') ||
+    lower.includes('short duration') || lower.includes('medium duration') ||
+    lower.includes('long duration') || lower.includes('dynamic bond') ||
+    lower.includes('floater') || lower.includes('ultra short') ||
+    lower.includes('low duration')
+  ) return null
+
+  // International / global — different currency base, skip alpha
+  if (
+    lower.includes('international') || lower.includes('global') ||
+    lower.includes('overseas')
+  ) return null
+
+  // Gold / commodity — skip alpha
+  if (
+    lower.includes('gold') || lower.includes('silver') ||
+    lower.includes('commodity')
+  ) return null
+
+  // Small cap — use SBI Small Cap as proxy benchmark
+  if (lower.includes('small cap')) return '120505'
+
+  // Mid cap — use HDFC Mid-Cap Opportunities as proxy benchmark
+  if (lower.includes('mid cap')) return '119597'
+
+  // Everything else (large cap, flexi cap, multi cap, ELSS, index,
+  // hybrid, focused, value, contra, sectoral, thematic) — Nifty 50
+  // UTI Nifty 50 Index Fund: 100356
+  return '100356'
+}

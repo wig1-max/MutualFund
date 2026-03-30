@@ -14,6 +14,7 @@ import TaxOptimizer from './pages/TaxOptimizer'
 import ReportGenerator from './pages/ReportGenerator'
 import ClientProfile from './pages/ClientProfile'
 import Recommendations, { RecommendationsLanding } from './pages/Recommendations'
+import DevLog from './pages/DevLog'
 import { Loader2 } from 'lucide-react'
 
 function AuthenticatedApp() {
@@ -46,6 +47,7 @@ function AuthenticatedApp() {
             <Route path="/profile/:clientId" element={<ClientProfile />} />
             <Route path="/scoring" element={<RecommendationsLanding />} />
             <Route path="/scoring/:clientId" element={<Recommendations />} />
+            <Route path="/dev" element={<DevLog />} />
           </Routes>
           </ClientProvider>
         </main>

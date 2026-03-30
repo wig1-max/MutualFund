@@ -14,6 +14,7 @@ import profilingRouter from './routes/profiling.js'
 import scoringRouter from './routes/scoring.js'
 import casRouter from './routes/cas.js'
 import factsheetsRouter from './routes/factsheets.js'
+import devlogRouter from './routes/devlog.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const app = express()
@@ -67,6 +68,9 @@ app.post('/api/auth/logout', (req, res) => {
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
+
+// Dev log (unprotected — developer diagnostic tool)
+app.use('/api', devlogRouter)
 
 // ---- Auth middleware for all other API routes ----
 

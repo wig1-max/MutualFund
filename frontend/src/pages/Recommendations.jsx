@@ -54,6 +54,7 @@ export default function Recommendations() {
   const [loading, setLoading] = useState(true)
   const [running, setRunning] = useState(false)
   const [data, setData] = useState(null)
+  const [sipBudget, setSipBudget] = useState(null)
 
   const loadData = async () => {
     setLoading(true)
@@ -91,7 +92,22 @@ export default function Recommendations() {
 
   const totalSIP = recommendations.reduce((s, r) => s + (r.recommended_sip || 0), 0)
   const surplus = profile?.investable_surplus || 0
-  const sipPct = surplus > 0 ? (totalSIP / surplus) * 100 : 0
+  const effectiveBudget = sipBudget ?? surplus
+  const sipScale = surplus > 0 ? effectiveBudget / surplus : 1
+  const adjustedRecs = recommendations.map(rec => ({
+    ...rec,
+    adjusted_sip: Math.max(500, Math.round((rec.recommended_sip * sipScale) / 500) * 500)
+  }))
+  const adjustedTotal = adjustedRecs.reduce((s, r) => s + r.adjusted_sip, 0)
+  const sipPct = surplus > 0 ? (adjustedTotal / surplus) * 100 : 0
+
+  const CRITERIA = [
+    { key: 'category_fit_score', label: 'Fit', max: 25, color: '#3b82f6' },
+    { key: 'risk_alignment_score', label: 'Risk', max: 25, color: '#8b5cf6' },
+    { key: 'tax_efficiency_score', label: 'Tax', max: 20, color: '#10b981' },
+    { key: 'overlap_penalty', label: 'Overlap', max: 20, color: '#f59e0b', invert: true },
+    { key: 'quality_score', label: 'Quality', max: 10, color: '#06b6d4' },
+  ]
 
   if (loading) {
     return (
@@ -168,15 +184,36 @@ export default function Recommendations() {
             {/* SIP vs Surplus */}
             <div className="bg-surface-800 rounded-xl border border-white/[0.07] shadow-sm p-5">
               <p className="text-xs text-slate-500 uppercase tracking-wide mb-2">Monthly SIP Plan</p>
-              <p className="text-lg font-bold text-slate-100">{formatCurrency(totalSIP)}<span className="text-sm text-slate-500 font-normal"> / {formatCurrency(surplus)}</span></p>
+              <p className="text-lg font-bold text-slate-100">
+                {formatCurrency(adjustedTotal)}
+                <span className="text-sm text-slate-500 font-normal"> / {formatCurrency(surplus)} surplus</span>
+              </p>
               <div className="w-full bg-white/[0.08] rounded-full h-2.5 mt-2">
-                <div className={`h-2.5 rounded-full transition-all ${sipPct > 70 ? 'bg-red-500' : 'bg-amber-500'}`}
+                <div className={`h-2.5 rounded-full transition-all ${sipPct > 100 ? 'bg-red-500' : 'bg-amber-500'}`}
                   style={{ width: `${Math.min(100, sipPct)}%` }} />
               </div>
-              {data?.total_recommended_sip > data?.profile?.investable_surplus * 1.05 && (
-                <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
-                  <AlertTriangle size={12} /> Total SIPs exceed investable surplus — consider reducing
-                </p>
+              {recommendations.length > 0 && (
+                <div className="mt-3">
+                  <label className="text-[10px] text-slate-500 uppercase tracking-wide">Adjust Monthly Budget</label>
+                  <input type="range"
+                    min={Math.max(500, Math.min(2000, Math.floor(surplus * 0.1)))}
+                    max={Math.max(surplus * 2, 50000)}
+                    step={500}
+                    value={effectiveBudget}
+                    onChange={e => setSipBudget(Number(e.target.value))}
+                    className="w-full h-1.5 mt-1.5 accent-amber-500 cursor-pointer" />
+                  <div className="flex justify-between text-[10px] text-slate-500 mt-1">
+                    <span>{'\u20B9'}{Math.max(500, Math.min(2000, Math.floor(surplus * 0.1))).toLocaleString('en-IN')}</span>
+                    <span className="text-amber-400 font-semibold">{'\u20B9'}{effectiveBudget.toLocaleString('en-IN')}/mo</span>
+                    <span>{'\u20B9'}{Math.max(surplus * 2, 50000).toLocaleString('en-IN')}</span>
+                  </div>
+                  {sipBudget !== null && sipBudget !== surplus && (
+                    <button onClick={() => setSipBudget(null)}
+                      className="text-[10px] text-amber-400 hover:text-amber-300 mt-1">
+                      Reset to recommended
+                    </button>
+                  )}
+                </div>
               )}
             </div>
 
@@ -290,7 +327,7 @@ export default function Recommendations() {
           )}
 
           {/* Recommendations Table */}
-          {recommendations.length > 0 && (
+          {adjustedRecs.length > 0 && (
             <div className="bg-surface-800 rounded-xl border border-white/[0.07] shadow-sm overflow-hidden mb-6">
               <div className="px-5 py-4 flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-slate-100">Top Fund Picks</h2>
@@ -303,13 +340,13 @@ export default function Recommendations() {
                       <th className="px-4 py-3 w-10">#</th>
                       <th className="px-4 py-3">Fund</th>
                       <th className="px-4 py-3">Bucket</th>
-                      <th className="px-4 py-3">Match Score</th>
+                      <th className="px-4 py-3 w-40">Match Score</th>
                       <th className="px-4 py-3 text-right">SIP/mo</th>
                       <th className="px-4 py-3">Reasons</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/[0.04]">
-                    {recommendations.map(rec => (
+                    {adjustedRecs.map(rec => (
                       <tr key={rec.id} className="hover:bg-white/[0.04]">
                         <td className="px-4 py-3 font-bold text-slate-100">{rec.rank}</td>
                         <td className="px-4 py-3">
@@ -323,33 +360,36 @@ export default function Recommendations() {
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          {(() => { const scorePercent = Math.round((rec.composite_score / 80) * 100); return (
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <div className="w-14 h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
-                                <div className="h-full rounded-full"
-                                  style={{
-                                    width: `${scorePercent}%`,
-                                    backgroundColor: scorePercent > 75 ? '#10b981' : scorePercent > 50 ? '#fbbf24' : '#94a3b8'
-                                  }} />
-                              </div>
-                              <span className="text-xs font-bold text-slate-100">{scorePercent}%</span>
+                          <div className="space-y-1.5">
+                            <span className="text-sm font-bold" style={{
+                              color: rec.composite_score >= 75 ? '#10b981' :
+                                     rec.composite_score >= 50 ? '#fbbf24' : '#94a3b8'
+                            }}>{rec.composite_score}%</span>
+                            <div className="flex gap-0.5">
+                              {CRITERIA.map(c => {
+                                const val = c.invert ? (c.max - (rec[c.key] || 0)) : (rec[c.key] || 0)
+                                const pct = Math.round((val / c.max) * 100)
+                                const barColor = pct >= 70 ? c.color : pct >= 40 ? '#fbbf24' : '#64748b'
+                                return (
+                                  <div key={c.key} className="flex-1" title={`${c.label}: ${val}/${c.max}`}>
+                                    <div className="h-1.5 rounded-full bg-white/[0.06]">
+                                      <div className="h-full rounded-full transition-all" style={{
+                                        width: `${pct}%`, backgroundColor: barColor
+                                      }} />
+                                    </div>
+                                  </div>
+                                )
+                              })}
                             </div>
-                            {rec.sortino_ratio != null && (
-                              <p className="text-[9px] text-slate-500">Sortino: {Number(rec.sortino_ratio).toFixed(2)}</p>
-                            )}
-                            {rec.jensen_alpha != null && (
-                              <p className={`text-[9px] font-medium ${rec.jensen_alpha > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                α: {rec.jensen_alpha > 0 ? '+' : ''}{Number(rec.jensen_alpha).toFixed(2)}%
-                              </p>
-                            )}
+                            <div className="flex gap-0.5 text-[8px] text-slate-600">
+                              {CRITERIA.map(c => <span key={c.key} className="flex-1 text-center">{c.label}</span>)}
+                            </div>
                           </div>
-                          ) })()}
                         </td>
-                        <td className="px-4 py-3 text-right font-medium text-slate-100">{formatCurrency(rec.recommended_sip || 0)}</td>
+                        <td className="px-4 py-3 text-right font-medium text-slate-100">{formatCurrency(rec.adjusted_sip || 0)}</td>
                         <td className="px-4 py-3">
                           <ul className="space-y-0.5">
-                            {(Array.isArray(rec.reasons) ? rec.reasons : []).slice(0, 2).map((r, i) => (
+                            {(Array.isArray(rec.reasons) ? rec.reasons : []).slice(0, 3).map((r, i) => (
                               <li key={i} className="flex items-start gap-1 text-xs text-slate-500">
                                 <Check size={12} className="text-emerald-400 mt-0.5 shrink-0" /> {r}
                               </li>
@@ -362,7 +402,7 @@ export default function Recommendations() {
                   <tfoot>
                     <tr className="bg-[#1B2A4A] text-white">
                       <td colSpan={4} className="px-4 py-3 font-semibold">Total Monthly SIP</td>
-                      <td className="px-4 py-3 text-right font-bold text-[#D4A847]">{formatCurrency(totalSIP)}</td>
+                      <td className="px-4 py-3 text-right font-bold text-[#D4A847]">{formatCurrency(adjustedTotal)}</td>
                       <td />
                     </tr>
                   </tfoot>

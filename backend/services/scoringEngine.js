@@ -571,27 +571,6 @@ function findBestFundForSlot(slot, db, metricsMap, existingHoldingCodes, factshe
           navDataPoints + factsheetBonus + heldPenalty
         )
 
-    const reasons = [...factsheetReasons]
-    if (slot.reason) reasons.push(slot.reason)
-    if (m?.sortino_ratio != null && m.sortino_ratio > 1) {
-      reasons.push(
-        `Strong downside protection (Sortino: ${m.sortino_ratio.toFixed(2)})`
-      )
-    }
-    if (outperformance > 2) {
-      reasons.push(
-        `Beats category average by ${outperformance.toFixed(1)}% (3Y)`
-      )
-    }
-    if (m?.calmar_ratio != null && m.calmar_ratio > 1) {
-      reasons.push(
-        `Good crash recovery profile (Calmar: ${m.calmar_ratio.toFixed(2)})`
-      )
-    }
-    if (reasons.length === 0) {
-      reasons.push(`Best available ${slot.label} by risk-adjusted ranking`)
-    }
-
     return {
       ...fund,
       in_slot_score: inSlotScore,
@@ -599,13 +578,14 @@ function findBestFundForSlot(slot, db, metricsMap, existingHoldingCodes, factshe
       calmar_ratio: m?.calmar_ratio ?? null,
       sharpe_ratio: m?.sharpe_ratio ?? null,
       jensen_alpha: m?.jensen_alpha ?? null,
+      std_deviation: m?.std_deviation ?? null,
       return_3y: return3y,
       category_avg_3y: categoryAvg3y,
       data_quality_score: m?.data_quality_score ?? 0,
       nav_data_points: navDataPoints,
       allocation_bucket: slot.label,
       slot_id: slot.id,
-      reasons,
+      factsheet_reasons: factsheetReasons,
       already_held: alreadyHeld,
     }
   })
@@ -735,20 +715,98 @@ export async function scoreClientFunds(clientId, options = {}) {
       continue
     }
 
-    // Calculate composite score for display (0-100)
+    // ── 5-Criteria Scoring (0–100) ──────────────────────
     const hasMetrics = best.nav_data_points > 0
-    const sortinoPts = hasMetrics
-      ? Math.min(30, (best.sortino_ratio || 0) * 15) : 15
-    const calmarPts  = hasMetrics
-      ? Math.min(20, (best.calmar_ratio  || 0) * 10) : 10
-    const qualityPts = Math.min(20, best.data_quality_score * 0.2)
-    const outPts     = Math.min(15,
-      Math.max(0, (best.return_3y - best.category_avg_3y) * 2)
-    )
-    const basePts    = 15
-    const displayScore = Math.round(
-      basePts + sortinoPts + calmarPts + qualityPts + outPts
-    )
+    const clientRisk = profile.risk_capacity_score || 50
+    const clientTaxSlab = profile.tax_slab || 20
+
+    // Category Fit /25 — how well fund category matches client risk profile
+    const fundRiskScore = riskLevelToScore(getCategoryRiskLevel(best.scheme_category))
+    const riskDiff = Math.abs(fundRiskScore - clientRisk)
+    const categoryFitScore = Math.round(Math.max(0, 25 - (riskDiff * 0.5)))
+
+    // Risk Alignment /25 — fund volatility vs client tolerance
+    let riskAlignScore
+    if (hasMetrics && best.std_deviation != null) {
+      const maxAcceptableVol = 8 + clientRisk * 0.32
+      const vol = best.std_deviation
+      const volFit = Math.max(0, 1 - Math.max(0, vol - maxAcceptableVol) / 20)
+      const sortinoBonus = Math.min(10, (best.sortino_ratio || 0) * 5)
+      riskAlignScore = Math.round(Math.min(25, volFit * 15 + sortinoBonus))
+    } else {
+      riskAlignScore = 12
+    }
+
+    // Tax Efficiency /20 — fund type advantage for client's slab
+    let taxScore
+    if (isELSS(best.scheme_category)) {
+      taxScore = 20
+    } else if (isEquityFund(best.scheme_category)) {
+      taxScore = clientTaxSlab >= 30 ? 16 : 14
+    } else if (isPassiveFund(best.scheme_name, best.scheme_category)) {
+      taxScore = 15
+    } else {
+      taxScore = clientTaxSlab >= 30 ? 8 : 12
+    }
+
+    // Overlap Check /20 — diversification bonus
+    const overlapScore = existingHoldingCodes.has(best.scheme_code) ? 0 : 20
+
+    // Fund Quality /10 — risk-adjusted performance metrics
+    let qualityScore = 0
+    if (hasMetrics) {
+      const sortinoQ = Math.min(3, (best.sortino_ratio || 0) * 1.5)
+      const calmarQ  = Math.min(3, (best.calmar_ratio  || 0) * 1.5)
+      const outQ     = Math.min(2, Math.max(0, ((best.return_3y || 0) - (best.category_avg_3y || 0)) * 0.5))
+      const dataQ    = Math.min(2, (best.data_quality_score || 0) * 0.02)
+      qualityScore = Math.round(sortinoQ + calmarQ + outQ + dataQ)
+    } else {
+      qualityScore = 3
+    }
+
+    const compositeScore = categoryFitScore + riskAlignScore + taxScore + overlapScore + qualityScore
+
+    // ── Criteria-based Reasons ────────────────────────
+    const reasons = [...(best.factsheet_reasons || [])]
+    if (slot.reason) reasons.push(slot.reason)
+
+    if (categoryFitScore >= 20) {
+      reasons.push(`Strong category fit for ${profile.risk_label} profile (${categoryFitScore}/25)`)
+    } else if (categoryFitScore >= 15) {
+      reasons.push(`Good category match for your risk profile (${categoryFitScore}/25)`)
+    }
+
+    if (riskAlignScore >= 20 && hasMetrics) {
+      reasons.push(`Volatility well-aligned with your risk capacity (${riskAlignScore}/25)`)
+    }
+
+    if (taxScore >= 18) {
+      reasons.push(
+        isELSS(best.scheme_category)
+          ? `Tax-saving ELSS fund (${taxScore}/20)`
+          : `Tax-efficient for ${clientTaxSlab}% slab (${taxScore}/20)`
+      )
+    }
+
+    if (overlapScore === 20) {
+      reasons.push(`Adds diversification — no overlap with holdings (20/20)`)
+    }
+
+    if (qualityScore >= 7 && hasMetrics) {
+      reasons.push(`Strong risk-adjusted returns (${qualityScore}/10)`)
+    }
+
+    const outperformance = (best.return_3y || 0) - (best.category_avg_3y || 0)
+    if (best.sortino_ratio != null && best.sortino_ratio > 1) {
+      reasons.push(`Sortino: ${best.sortino_ratio.toFixed(2)}`)
+    }
+    if (outperformance > 2) {
+      reasons.push(`Beats category by ${outperformance.toFixed(1)}% (3Y)`)
+    }
+
+    if (reasons.length === 0) {
+      reasons.push(`Scored ${compositeScore}/100 for your profile`)
+    }
 
     // SIP amount for this slot
     const rawSip  = surplus * slot.sip_weight
@@ -761,18 +819,15 @@ export async function scoreClientFunds(clientId, options = {}) {
       scheme_category: best.scheme_category,
       category:        best.scheme_category,
       amc:             best.amc,
-      composite_score: displayScore,
-      category_fit_score: Math.round(Math.min(30, (best.sortino_ratio || 0) * 15)),
-      risk_alignment_score: 15,
-      tax_efficiency_score: Math.round(
-        isELSS(best.scheme_category) ? 20 :
-        isPassiveFund(best.scheme_name, best.scheme_category) ? 15 : 10
-      ),
-      overlap_penalty: existingHoldingCodes.has(best.scheme_code) ? 10 : 0,
-      quality_score: Math.round(Math.min(20, (best.data_quality_score || 0) * 0.2)),
+      composite_score: compositeScore,
+      category_fit_score: categoryFitScore,
+      risk_alignment_score: riskAlignScore,
+      tax_efficiency_score: taxScore,
+      overlap_penalty: 20 - overlapScore,
+      quality_score:   qualityScore,
       allocation_bucket: slot.label,
       recommended_sip: sip,
-      reasons:         best.reasons,
+      reasons,
       sortino_ratio:   best.sortino_ratio,
       calmar_ratio:    best.calmar_ratio,
       sharpe_ratio:    best.sharpe_ratio,

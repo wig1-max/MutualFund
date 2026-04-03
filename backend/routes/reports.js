@@ -76,7 +76,7 @@ router.post('/reports/generate', async (req, res) => {
     const anthropic = getAnthropicClient()
     const message = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 4000,
+      max_tokens: 1500,
       messages: [{ role: 'user', content: prompt }],
     })
 
@@ -317,14 +317,14 @@ function buildPrompt(client, reportType, data, customInstructions) {
 - Advisor: Tejova Mutual Fund Distribution
 
 **Important Guidelines:**
+- CRITICAL LENGTH LIMIT: Keep the report to 1 page (~400-500 words). Only in complex cases with many holdings, allow up to 2 pages max. Be concise — bullet points, short sentences, key numbers only. No filler, no lengthy explanations. Every sentence must add value.
 - Write in professional but accessible language suitable for an Indian mutual fund investor
 - Use Indian currency format (e.g., "Rs 10,00,000" or "Rs 10 lakh")
-- Include specific numbers and data from the provided information
-- Provide actionable recommendations where appropriate
-- Add a SEBI disclaimer at the end: "Mutual fund investments are subject to market risks. Please read all scheme related documents carefully before investing. Past performance is not indicative of future returns."
-- Format the report using markdown with clear sections, headers (##), bullet points, and bold text for key figures
-- Keep the tone professional yet warm — this is for a real client relationship
-- Do NOT use any HTML tags — only markdown formatting
+- Include only the most important numbers — skip redundant or obvious data
+- Provide 3-5 crisp, actionable recommendations — no lengthy rationale
+- End with a one-line SEBI disclaimer: "Mutual fund investments are subject to market risks. Read all scheme documents carefully."
+- Format using markdown: headers (##), bullet points, bold for key figures. No HTML tags
+- Keep tone professional yet warm — concise does not mean cold
 
 `
 
@@ -394,46 +394,32 @@ ${customInstructions}
 `
   }
 
-  // Report-specific instructions
+  // Report-specific instructions (keep sections minimal)
   switch (reportType) {
     case 'portfolio_review':
-      prompt += `\nGenerate a Portfolio Review Report with these sections:
-1. Executive Summary
-2. Portfolio Overview (value, gains, allocation)
-3. Fund-wise Performance Analysis
-4. Asset Allocation Assessment
-5. Key Observations & Risk Factors
-6. Recommendations
-7. Disclaimer`
+      prompt += `\nGenerate a concise Portfolio Review with these sections ONLY:
+1. Portfolio Snapshot (total value, gains, allocation — use a compact bullet list)
+2. Key Observations & Action Items (top 3-5 points, what to do next)
+3. Disclaimer (one line)`
       break
     case 'goal_progress':
-      prompt += `\nGenerate a Goal Progress Report with these sections:
-1. Executive Summary
-2. Goal-wise Progress Tracker
-3. SIP Adequacy Analysis
-4. Gap Analysis (shortfalls and surplus)
-5. Recommendations to Stay on Track
-6. Disclaimer`
+      prompt += `\nGenerate a concise Goal Progress Report with these sections ONLY:
+1. Goal Status (compact list: goal name, target, progress %, gap/surplus)
+2. Action Items (what to adjust — SIP changes, rebalancing)
+3. Disclaimer (one line)`
       break
     case 'tax_summary':
-      prompt += `\nGenerate a Tax Planning Summary with these sections:
-1. Executive Summary
-2. Capital Gains Breakdown (STCG/LTCG by fund type)
-3. Tax Liability Estimate
-4. Tax-Loss Harvesting Opportunities
-5. Tax-Saving Recommendations
-6. Disclaimer`
+      prompt += `\nGenerate a concise Tax Summary with these sections ONLY:
+1. Tax Position (STCG/LTCG totals, estimated tax liability — compact)
+2. Recommendations (harvesting opportunities, tax-saving actions)
+3. Disclaimer (one line)`
       break
     case 'comprehensive':
-      prompt += `\nGenerate a Comprehensive Review Report with these sections:
-1. Executive Summary
-2. Portfolio Health (value, gains, allocation)
-3. Fund-wise Performance
-4. Goal Progress & SIP Adequacy
-5. Tax Position & Planning
-6. Key Recommendations (prioritized action items)
-7. Next Review Date Suggestion
-8. Disclaimer`
+      prompt += `\nGenerate a concise Comprehensive Review with these sections ONLY:
+1. Portfolio Snapshot (value, gains, allocation — compact)
+2. Goals & Tax Summary (brief status of each, tax liability)
+3. Priority Action Items (top 3-5 numbered recommendations)
+4. Disclaimer (one line)`
       break
   }
 

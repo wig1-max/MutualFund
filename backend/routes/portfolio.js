@@ -219,7 +219,7 @@ router.get('/portfolio/:clientId/analysis', async (req, res) => {
   })).sort((a, b) => b.value - a.value)
 
   // Overlap Analysis
-  const overlap = calculateOverlap(enriched)
+  const overlap = calculateOverlap(enriched, db, fundHoldings)
 
   // Underperformer Detection
   // Compare each fund's 1Y return to category average
@@ -314,8 +314,42 @@ function categorizeFund(category) {
   return 'Other'
 }
 
-// Helper: calculate overlap between funds using static holdings data
-function calculateOverlap(enrichedHoldings) {
+/**
+ * Get top holdings for a fund as a flat string array.
+ * Priority: fund_factsheets (latest month) → static JSON fallback.
+ * Returns [] if no data available from either source.
+ */
+function getHoldingsForFund(schemeCode, db, staticFallback) {
+  // Try fund_factsheets first — get the most recent month's data
+  try {
+    const row = db.prepare(`
+      SELECT top_holdings FROM fund_factsheets
+      WHERE scheme_code = ?
+        AND top_holdings IS NOT NULL
+      ORDER BY factsheet_month DESC
+      LIMIT 1
+    `).get(schemeCode)
+
+    if (row?.top_holdings) {
+      const parsed = JSON.parse(row.top_holdings)
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Extract stock names — handles both {name, pct} and plain strings
+        const names = parsed
+          .map(h => (typeof h === 'string' ? h : h?.name))
+          .filter(Boolean)
+        if (names.length > 0) return names
+      }
+    }
+  } catch (e) {
+    // JSON parse error or DB error — fall through to static
+  }
+
+  // Fallback: static JSON (fund-holdings.json)
+  return staticFallback[schemeCode]?.holdings || []
+}
+
+// Helper: calculate overlap between funds using live factsheet + static fallback
+function calculateOverlap(enrichedHoldings, db, staticFallback) {
   const results = []
   const fundCodes = enrichedHoldings.map(h => h.scheme_code)
 
@@ -323,8 +357,8 @@ function calculateOverlap(enrichedHoldings) {
     for (let j = i + 1; j < fundCodes.length; j++) {
       const code1 = fundCodes[i]
       const code2 = fundCodes[j]
-      const holdings1 = fundHoldings[code1]?.holdings || []
-      const holdings2 = fundHoldings[code2]?.holdings || []
+      const holdings1 = getHoldingsForFund(code1, db, staticFallback)
+      const holdings2 = getHoldingsForFund(code2, db, staticFallback)
 
       if (holdings1.length === 0 || holdings2.length === 0) continue
 
@@ -339,6 +373,7 @@ function calculateOverlap(enrichedHoldings) {
           commonHoldings: common,
           commonCount: common.length,
           overlapPercent,
+          dataSource: (holdings1.length > 0 && holdings2.length > 0) ? 'live' : 'partial',
         })
       }
     }

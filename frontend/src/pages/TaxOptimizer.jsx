@@ -459,19 +459,19 @@ function TaxEstimator({ onClose }) {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
           <div>
             <label className="text-[10px] text-gray-400 font-medium block mb-1">Invested ({'\u20B9'})</label>
-            <input type="number" value={form.invested} onChange={e => set('invested', parseFloat(e.target.value) || 0)} className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40" />
+            <input type="number" value={form.invested} onChange={e => set('invested', parseFloat(e.target.value) || 0)} className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-sm text-[#1B2A4A] focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40" />
           </div>
           <div>
             <label className="text-[10px] text-gray-400 font-medium block mb-1">Current Value ({'\u20B9'})</label>
-            <input type="number" value={form.current_value} onChange={e => set('current_value', parseFloat(e.target.value) || 0)} className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40" />
+            <input type="number" value={form.current_value} onChange={e => set('current_value', parseFloat(e.target.value) || 0)} className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-sm text-[#1B2A4A] focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40" />
           </div>
           <div>
             <label className="text-[10px] text-gray-400 font-medium block mb-1">Holding (months)</label>
-            <input type="number" value={form.holding_months} onChange={e => set('holding_months', parseInt(e.target.value) || 0)} className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40" />
+            <input type="number" value={form.holding_months} onChange={e => set('holding_months', parseInt(e.target.value) || 0)} className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-sm text-[#1B2A4A] focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40" />
           </div>
           <div>
             <label className="text-[10px] text-gray-400 font-medium block mb-1">Fund Type</label>
-            <select value={form.fund_type} onChange={e => set('fund_type', e.target.value)} className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40">
+            <select value={form.fund_type} onChange={e => set('fund_type', e.target.value)} className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-sm text-[#1B2A4A] focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40">
               <option value="equity">Equity</option>
               <option value="debt">Debt</option>
             </select>

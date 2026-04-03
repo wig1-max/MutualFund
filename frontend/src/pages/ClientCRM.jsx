@@ -449,7 +449,7 @@ function ClientDetailPanel({ client, onClose, onEdit, onDelete, onUpdate }) {
               onChange={(e) => setNewNote(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAddNote()}
               placeholder="Add a note..."
-              className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40"
+              className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm text-[#1B2A4A] focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40"
             />
             <button
               onClick={handleAddNote}
@@ -547,7 +547,7 @@ function ClientFormModal({ client, onClose, onSave }) {
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
-          <h2 className="text-lg font-bold text-slate-100">{client ? 'Edit Client' : 'Add New Client'}</h2>
+          <h2 className="text-lg font-bold text-[#1B2A4A]">{client ? 'Edit Client' : 'Add New Client'}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
         </div>
 
@@ -571,7 +571,7 @@ function ClientFormModal({ client, onClose, onSave }) {
               <select
                 value={form.risk_profile}
                 onChange={(e) => setForm(f => ({ ...f, risk_profile: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-[#1B2A4A] focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40"
               >
                 {RISK_PROFILES.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
@@ -581,7 +581,7 @@ function ClientFormModal({ client, onClose, onSave }) {
               <select
                 value={form.review_frequency}
                 onChange={(e) => setForm(f => ({ ...f, review_frequency: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-[#1B2A4A] focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40"
               >
                 {REVIEW_FREQUENCIES.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
@@ -640,7 +640,7 @@ function FormField({ label, value, onChange, type = 'text', placeholder, require
         placeholder={placeholder}
         required={required}
         maxLength={maxLength}
-        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40 focus:border-[#D4A847]"
+        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-[#1B2A4A] focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40 focus:border-[#D4A847]"
       />
     </div>
   )

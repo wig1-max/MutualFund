@@ -355,11 +355,11 @@ function SipBacktestTab() {
           </div>
           <div>
             <label className="text-xs text-gray-400 font-medium block mb-1.5">Monthly SIP ({'\u20B9'})</label>
-            <input type="number" value={sipAmount} onChange={(e) => setSipAmount(e.target.value)} className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40" />
+            <input type="number" value={sipAmount} onChange={(e) => setSipAmount(e.target.value)} className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-[#1B2A4A] focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40" />
           </div>
           <div>
             <label className="text-xs text-gray-400 font-medium block mb-1.5">Start Date</label>
-            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40" />
+            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-[#1B2A4A] focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40" />
           </div>
         </div>
         <button onClick={handleBacktest} disabled={!fund || loading} className="mt-4 px-6 py-2.5 bg-[#D4A847] text-white rounded-lg text-sm font-medium hover:bg-[#c49a2e] disabled:opacity-50 transition-colors">

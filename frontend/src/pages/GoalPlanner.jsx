@@ -125,7 +125,7 @@ export default function GoalPlanner() {
             <select
               value={selectedClientId || ''}
               onChange={(e) => setSelectedClientId(e.target.value ? parseInt(e.target.value) : null)}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40 focus:border-[#D4A847]"
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-[#1B2A4A] focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40 focus:border-[#D4A847]"
             >
               <option value="">Choose a client...</option>
               {clients.map(c => (
@@ -386,7 +386,7 @@ function GoalFormModal({ clientId, goal, onClose, onSave }) {
           {/* Goal Name */}
           <div>
             <label className="text-xs text-gray-400 font-medium block mb-1.5">Goal Name *</label>
-            <input type="text" value={form.goal_name} onChange={e => set('goal_name', e.target.value)} required placeholder="e.g. Daughter's Engineering" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40" />
+            <input type="text" value={form.goal_name} onChange={e => set('goal_name', e.target.value)} required placeholder="e.g. Daughter's Engineering" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-[#1B2A4A] focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40" />
           </div>
 
           {/* Goal Type */}
@@ -418,11 +418,11 @@ function GoalFormModal({ clientId, goal, onClose, onSave }) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-xs text-gray-400 font-medium block mb-1.5">Target Amount ({'\u20B9'}) *</label>
-              <input type="number" value={form.target_amount} onChange={e => set('target_amount', e.target.value)} required placeholder="e.g. 5000000" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40" />
+              <input type="number" value={form.target_amount} onChange={e => set('target_amount', e.target.value)} required placeholder="e.g. 5000000" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-[#1B2A4A] focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40" />
             </div>
             <div>
               <label className="text-xs text-gray-400 font-medium block mb-1.5">Target Year *</label>
-              <input type="number" value={form.target_year} onChange={e => set('target_year', e.target.value)} min={currentYear + 1} required className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40" />
+              <input type="number" value={form.target_year} onChange={e => set('target_year', e.target.value)} min={currentYear + 1} required className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-[#1B2A4A] focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40" />
             </div>
           </div>
 
@@ -430,11 +430,11 @@ function GoalFormModal({ clientId, goal, onClose, onSave }) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-xs text-gray-400 font-medium block mb-1.5">Current Savings ({'\u20B9'})</label>
-              <input type="number" value={form.current_savings} onChange={e => set('current_savings', e.target.value)} placeholder="0" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40" />
+              <input type="number" value={form.current_savings} onChange={e => set('current_savings', e.target.value)} placeholder="0" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-[#1B2A4A] focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40" />
             </div>
             <div>
               <label className="text-xs text-gray-400 font-medium block mb-1.5">Expected Return (% p.a.)</label>
-              <input type="number" step="0.5" value={form.expected_return} onChange={e => set('expected_return', e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40" />
+              <input type="number" step="0.5" value={form.expected_return} onChange={e => set('expected_return', e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-[#1B2A4A] focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40" />
             </div>
           </div>
 
@@ -442,11 +442,11 @@ function GoalFormModal({ clientId, goal, onClose, onSave }) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-xs text-gray-400 font-medium block mb-1.5">Inflation Rate (% p.a.)</label>
-              <input type="number" step="0.5" value={form.inflation_rate} onChange={e => set('inflation_rate', e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40" />
+              <input type="number" step="0.5" value={form.inflation_rate} onChange={e => set('inflation_rate', e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-[#1B2A4A] focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40" />
             </div>
             <div>
               <label className="text-xs text-gray-400 font-medium block mb-1.5">Priority</label>
-              <select value={form.priority} onChange={e => set('priority', e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40">
+              <select value={form.priority} onChange={e => set('priority', e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-[#1B2A4A] focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40">
                 <option value="High">High</option>
                 <option value="Medium">Medium</option>
                 <option value="Low">Low</option>
@@ -469,14 +469,14 @@ function GoalFormModal({ clientId, goal, onClose, onSave }) {
               onChange={e => set('monthly_sip', e.target.value)}
               disabled={autoSip}
               placeholder={autoSip ? 'Will be calculated automatically' : 'e.g. 10000'}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40 disabled:bg-gray-50 disabled:text-gray-400"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-[#1B2A4A] focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40 disabled:bg-gray-50 disabled:text-gray-400"
             />
           </div>
 
           {/* Notes */}
           <div>
             <label className="text-xs text-gray-400 font-medium block mb-1.5">Notes (optional)</label>
-            <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={2} placeholder="Any additional context..." className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40 resize-none" />
+            <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={2} placeholder="Any additional context..." className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-[#1B2A4A] focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40 resize-none" />
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
@@ -532,23 +532,23 @@ function SipCalculator({ onClose }) {
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-4">
           <div>
             <label className="text-[10px] text-gray-400 font-medium block mb-1">Target ({'\u20B9'})</label>
-            <input type="number" value={form.target_amount} onChange={e => set('target_amount', parseFloat(e.target.value) || 0)} className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40" />
+            <input type="number" value={form.target_amount} onChange={e => set('target_amount', parseFloat(e.target.value) || 0)} className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-sm text-[#1B2A4A] focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40" />
           </div>
           <div>
             <label className="text-[10px] text-gray-400 font-medium block mb-1">Year</label>
-            <input type="number" value={form.target_year} onChange={e => set('target_year', parseInt(e.target.value) || currentYear + 10)} min={currentYear + 1} className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40" />
+            <input type="number" value={form.target_year} onChange={e => set('target_year', parseInt(e.target.value) || currentYear + 10)} min={currentYear + 1} className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-sm text-[#1B2A4A] focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40" />
           </div>
           <div>
             <label className="text-[10px] text-gray-400 font-medium block mb-1">Savings ({'\u20B9'})</label>
-            <input type="number" value={form.current_savings} onChange={e => set('current_savings', parseFloat(e.target.value) || 0)} className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40" />
+            <input type="number" value={form.current_savings} onChange={e => set('current_savings', parseFloat(e.target.value) || 0)} className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-sm text-[#1B2A4A] focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40" />
           </div>
           <div>
             <label className="text-[10px] text-gray-400 font-medium block mb-1">Return %</label>
-            <input type="number" step="0.5" value={form.expected_return} onChange={e => set('expected_return', parseFloat(e.target.value) || 12)} className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40" />
+            <input type="number" step="0.5" value={form.expected_return} onChange={e => set('expected_return', parseFloat(e.target.value) || 12)} className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-sm text-[#1B2A4A] focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40" />
           </div>
           <div>
             <label className="text-[10px] text-gray-400 font-medium block mb-1">Inflation %</label>
-            <input type="number" step="0.5" value={form.inflation_rate} onChange={e => set('inflation_rate', parseFloat(e.target.value) || 6)} className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40" />
+            <input type="number" step="0.5" value={form.inflation_rate} onChange={e => set('inflation_rate', parseFloat(e.target.value) || 6)} className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-sm text-[#1B2A4A] focus:outline-none focus:ring-2 focus:ring-[#D4A847]/40" />
           </div>
         </div>
         <button onClick={handleCalculate} disabled={loading} className="px-5 py-2 bg-[#D4A847] text-white rounded-lg text-sm font-medium hover:bg-[#c49a2e] disabled:opacity-50 transition-colors">

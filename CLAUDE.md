@@ -10,7 +10,7 @@ MutualFund/
 │   ├── server.js               # Entry point, auth middleware, mounts all routers under /api
 │   ├── db/
 │   │   ├── index.js            # SQLite (better-sqlite3) singleton with WAL mode
-│   │   ├── schema.sql          # 12 tables (see Database Schema below)
+│   │   ├── schema.sql          # 13 tables (see Database Schema below)
 │   │   └── tejova.db           # SQLite database file (gitignored)
 │   ├── routes/
 │   │   ├── funds.js            # Fund search, NAV, returns, SIP backtest, category heatmap
@@ -24,7 +24,9 @@ MutualFund/
 │   │   ├── scoring.js          # Fund metrics computation, scoring by risk/quality
 │   │   ├── cas.js              # CAS text parsing, import, holdings retrieval
 │   │   ├── factsheets.js       # AMC factsheet pipeline triggers (fetch/extract/store)
-│   │   └── devlog.js           # Database stats, metrics coverage, diagnostic info
+│   │   ├── devlog.js           # Database stats, metrics coverage, diagnostic info
+│   │   ├── assets.js           # Household assets CRUD (non-MF: stocks, FDs, insurance, etc.)
+│   │   └── wealth.js           # Aggregated wealth summary (MF + household assets)
 │   ├── services/
 │   │   ├── mfapi.js            # mfapi.in API wrapper (NAV history, latest NAV)
 │   │   ├── amfi.js             # AMFI NAV feed sync (bulk fund data)
@@ -38,9 +40,11 @@ MutualFund/
 │   │   ├── factsheetExtractor.js # Claude API-based PDF extraction of fund data
 │   │   ├── pdfFetcher.js       # PDF download (20MB limit) + AMC website link scraping
 │   │   ├── monteCarloEngine.js # Goal survival simulations (t-distribution, stress scenarios)
-│   │   └── amcRegistry.js      # URLs and metadata for 15+ Indian AMCs
+│   │   ├── amcRegistry.js      # URLs and metadata for 15+ Indian AMCs
+│   │   └── assetValuation.js   # Current-value estimation for non-MF assets (FD, PPF, SGB, etc.)
 │   ├── utils/
-│   │   └── fundClassification.js # isEquityFund, getCategoryRiskLevel, getAllocationBucket, getBenchmarkSchemeCode
+│   │   ├── fundClassification.js # isEquityFund, getCategoryRiskLevel, getAllocationBucket, getBenchmarkSchemeCode
+│   │   └── assetClassification.js # Asset type taxonomy, tax/liquidity classification, wealth buckets
 │   └── data/
 │       └── fund-holdings.json  # Static fund holdings data for overlap analysis
 ├── frontend/                   # React (Vite) + Tailwind CSS
@@ -138,11 +142,12 @@ npx vite build       # Production build to dist/
 - **Component Hierarchy**: `ErrorBoundary > ToastProvider > AuthProvider > BrowserRouter > ClientProvider > Routes`
 - **Background Startup Jobs**: Metrics computation (3s delay, if coverage < 50%) and factsheet pipeline (60s delay, if < 5 AMCs extracted)
 - **SPA Fallback**: Non-API routes serve `frontend/dist/index.html` for client-side routing
-- **MF-Only Scope**: All holdings, analysis, tax, and recommendations are mutual fund-specific. No support for stocks, FDs, insurance, real estate, PF/PPF, NPS, or other asset classes
+- **Multi-Asset Foundation**: `household_assets` table stores non-MF assets (stocks, FDs, insurance, real estate, PF/PPF, NPS, gold, EPF). MF holdings remain in `client_holdings`/`cas_holdings`. Wealth summary aggregates both layers.
+- **MF-Specialist Scope**: Scoring engine, fund metrics, calculations, CAS import, factsheet pipeline, and fund classification remain MF-only. Non-MF assets use simpler valuation (assetValuation.js) and manual entry
 
 ## Database Schema (SQLite)
 
-12 tables in `backend/db/schema.sql`. Schema auto-creates on first connection. DB file: `backend/db/tejova.db`. Backup: `GET /api/backup`.
+13 tables in `backend/db/schema.sql`. Schema auto-creates on first connection. DB file: `backend/db/tejova.db`. Backup: `GET /api/backup`.
 
 | Table | Purpose |
 |-------|---------|
@@ -158,6 +163,7 @@ npx vite build       # Production build to dist/
 | `fund_metrics` | Computed metrics per fund: std_deviation, max_drawdown, Sharpe/Sortino/Calmar ratios, alpha, 1Y/3Y/5Y returns, data quality score (PK: scheme_code) |
 | `fund_factsheets` | Extracted factsheet data: expense_ratio, AUM, manager, top holdings, sector allocation, PE/PB, cap split, investment style |
 | `amc_factsheet_sources` | AMC registry for factsheet scraping: URL templates, fetch method, last status, active flag |
+| `household_assets` | Non-MF assets (stocks, FDs, insurance, real estate, PF/PPF, NPS, gold, EPF, other); asset_type enum, metadata JSON, interest_rate, maturity_date (FK → clients) |
 
 ## API Routes
 
@@ -178,6 +184,8 @@ All routes prefixed with `/api`. Auth required unless noted.
 | `/scoring/*` | Fund Scoring | Compute fund metrics, check job progress, score funds for client |
 | `/cas/*` | CAS Import | Parse CAS text, import to holdings, retrieve, clear |
 | `/factsheets/*` | Factsheets | Trigger AMC factsheet pipeline (fetch → extract → store) |
+| `/assets/*` | Household Assets | Non-MF asset CRUD, asset type listing |
+| `/wealth/*` | Wealth Summary | Aggregated wealth view (MF + household assets), total wealth |
 | `/backup` | Backup | Database backup download |
 
 ## Frontend Routes

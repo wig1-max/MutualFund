@@ -252,3 +252,32 @@ CREATE TABLE IF NOT EXISTS amc_factsheet_sources (
   funds_extracted INTEGER DEFAULT 0,
   active INTEGER DEFAULT 1
 );
+
+-- Household assets: non-MF assets for unified wealth view
+CREATE TABLE IF NOT EXISTS household_assets (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_id INTEGER NOT NULL,
+  asset_type TEXT NOT NULL CHECK(asset_type IN (
+    'stock', 'fd', 'insurance', 'real_estate', 'pf_ppf', 'nps',
+    'gold_physical', 'gold_sgb', 'epf', 'other'
+  )),
+  asset_subtype TEXT,
+  name TEXT NOT NULL,
+  identifier TEXT,
+  invested_amount REAL NOT NULL DEFAULT 0,
+  current_value REAL,
+  units REAL,
+  purchase_date TEXT,
+  maturity_date TEXT,
+  interest_rate REAL,
+  metadata TEXT DEFAULT '{}',
+  notes TEXT,
+  source TEXT DEFAULT 'manual' CHECK(source IN ('manual', 'import')),
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_household_assets_client ON household_assets(client_id);
+CREATE INDEX IF NOT EXISTS idx_household_assets_type ON household_assets(asset_type);
+CREATE INDEX IF NOT EXISTS idx_household_assets_client_type ON household_assets(client_id, asset_type);

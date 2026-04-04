@@ -15,6 +15,8 @@ import scoringRouter from './routes/scoring.js'
 import casRouter from './routes/cas.js'
 import factsheetsRouter from './routes/factsheets.js'
 import devlogRouter from './routes/devlog.js'
+import assetsRouter from './routes/assets.js'
+import wealthRouter from './routes/wealth.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const app = express()
@@ -91,6 +93,8 @@ app.use('/api', profilingRouter)
 app.use('/api', scoringRouter)
 app.use('/api', casRouter)
 app.use('/api', factsheetsRouter)
+app.use('/api', assetsRouter)
+app.use('/api', wealthRouter)
 
 // ---- Static file serving (production) ----
 

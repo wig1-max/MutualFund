@@ -14,6 +14,7 @@ import TaxOptimizer from './pages/TaxOptimizer'
 import ReportGenerator from './pages/ReportGenerator'
 import ClientProfile from './pages/ClientProfile'
 import Recommendations, { RecommendationsLanding } from './pages/Recommendations'
+import WealthView from './pages/WealthView'
 import DevLog from './pages/DevLog'
 import { Loader2 } from 'lucide-react'
 
@@ -40,6 +41,7 @@ function AuthenticatedApp() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/fund-intelligence" element={<FundIntelligence />} />
             <Route path="/portfolio-xray" element={<PortfolioXray />} />
+            <Route path="/wealth" element={<WealthView />} />
             <Route path="/report-generator" element={<ReportGenerator />} />
             <Route path="/goal-planner" element={<GoalPlanner />} />
             <Route path="/tax-optimizer" element={<TaxOptimizer />} />

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, TrendingUp, PieChart, FileText,
-  Target, Calculator, Users, Brain,
+  Target, Calculator, Users, Brain, Wallet,
   ChevronLeft, ChevronRight, Menu, X, LogOut,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
@@ -12,6 +12,7 @@ const navItems = [
   { label: 'Fund Recommender', icon: Brain,            to: '/scoring'           },
   { label: 'Fund Intelligence',icon: TrendingUp,       to: '/fund-intelligence' },
   { label: 'Portfolio X-Ray',  icon: PieChart,         to: '/portfolio-xray'    },
+  { label: 'Wealth Overview',  icon: Wallet,           to: '/wealth'            },
   { label: 'Report Generator', icon: FileText,         to: '/report-generator'  },
   { label: 'Goal Planner',     icon: Target,           to: '/goal-planner'      },
   { label: 'Tax Optimizer',    icon: Calculator,       to: '/tax-optimizer'     },

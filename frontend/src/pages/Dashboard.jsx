@@ -13,7 +13,7 @@ import {
   Download,
   Brain,
 } from 'lucide-react'
-import { getClientStats, getTotalAum, getLatestNav, downloadBackup, getProfilingSummary } from '../services/api'
+import { getClientStats, getTotalAum, getLatestNav, downloadBackup, getProfilingSummary, getTotalWealth } from '../services/api'
 import { formatCurrency } from '../lib/utils'
 
 const quickActions = [
@@ -32,10 +32,12 @@ export default function Dashboard() {
   const [stats, setStats] = useState(null)
   const [totalAum, setTotalAum] = useState(null)
   const [profilingSummary, setProfilingSummary] = useState(null)
+  const [totalWealth, setTotalWealth] = useState(null)
 
   useEffect(() => {
     getClientStats().then(setStats).catch(() => {})
     getTotalAum().then(data => setTotalAum(data.totalAum)).catch(() => {})
+    getTotalWealth().then(setTotalWealth).catch(() => {})
     getProfilingSummary().then(setProfilingSummary).catch(() => {})
     getLatestNav('100356')
       .then(data => {
@@ -104,6 +106,42 @@ export default function Dashboard() {
           )
         })}
       </div>
+
+      {/* Total Wealth Card */}
+      {totalWealth && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-10">
+          <div className="bg-surface-800 border border-white/[0.07] rounded-xl p-5 border-l-2 border-emerald-500/40">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Total Wealth</p>
+                <p className="text-2xl font-bold text-slate-100 mt-2 data-num">{formatCurrency(totalWealth.total_estimated)}</p>
+                <p className="text-[10px] text-slate-600 mt-0.5">across all clients</p>
+              </div>
+              <div className="p-2 rounded-lg bg-white/[0.04] border border-white/[0.06]">
+                <IndianRupee size={16} className="text-emerald-500" />
+              </div>
+            </div>
+          </div>
+          <div className="bg-surface-800 border border-white/[0.07] rounded-xl p-5 border-l-2 border-sky-500/40">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">MF AUM</p>
+                <p className="text-2xl font-bold text-slate-100 mt-2 data-num">{formatCurrency(totalWealth.mf_aum)}</p>
+                <p className="text-[10px] text-slate-600 mt-0.5">mutual fund investments</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-surface-800 border border-white/[0.07] rounded-xl p-5 border-l-2 border-violet-500/40">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Other Assets</p>
+                <p className="text-2xl font-bold text-slate-100 mt-2 data-num">{formatCurrency(totalWealth.household_estimated)}</p>
+                <p className="text-[10px] text-slate-600 mt-0.5">non-MF household assets</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Intelligence Signals */}
       {profilingSummary && (

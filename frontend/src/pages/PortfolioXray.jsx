@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   PieChart as PieChartIcon, Plus, Trash2, Loader2, AlertTriangle,
-  TrendingDown, Building2, Layers, BarChart3, ChevronRight, X
+  TrendingDown, Building2, Layers, BarChart3, ChevronRight, X, Wallet, Landmark,
 } from 'lucide-react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 import { useToast } from '../components/Toast'
@@ -20,6 +20,9 @@ export default function PortfolioXray() {
   const [loading, setLoading] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
   const [showAddHolding, setShowAddHolding] = useState(false)
+  const [activeTab, setActiveTab] = useState('holdings')
+  const [wealthSummary, setWealthSummary] = useState(null)
+  const [wealthLoading, setWealthLoading] = useState(false)
 
   useEffect(() => {
     api.getClients().then(setClients).catch(err => showToast(err.message, 'error'))
@@ -29,6 +32,7 @@ export default function PortfolioXray() {
     if (!selectedClientId) {
       setHoldings([])
       setAnalysis(null)
+      setWealthSummary(null)
       return
     }
     setLoading(true)
@@ -37,6 +41,15 @@ export default function PortfolioXray() {
       .catch(err => showToast(err.message, 'error'))
       .finally(() => setLoading(false))
   }, [selectedClientId])
+
+  useEffect(() => {
+    if (!selectedClientId || activeTab !== 'wealth') return
+    setWealthLoading(true)
+    api.getWealthSummary(selectedClientId)
+      .then(setWealthSummary)
+      .catch(err => showToast(err.message, 'error'))
+      .finally(() => setWealthLoading(false))
+  }, [selectedClientId, activeTab])
 
   const handleAddHolding = async (fund, amount, units, purchaseDate) => {
     if (!selectedClientId) return
@@ -132,22 +145,50 @@ export default function PortfolioXray() {
         </div>
       </div>
 
+      {/* Tabs */}
+      {selectedClientId && (
+        <div className="flex gap-1 mb-6 bg-surface-800 border border-white/[0.07] rounded-xl p-1 w-fit">
+          {[
+            { key: 'holdings', label: 'Holdings', icon: PieChartIcon },
+            { key: 'wealth', label: 'Wealth View', icon: Wallet },
+          ].map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === tab.key
+                  ? 'bg-amber-500/10 text-amber-400'
+                  : 'text-slate-500 hover:text-slate-200 hover:bg-white/[0.04]'
+              }`}
+            >
+              <tab.icon size={14} />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Add Holding Modal */}
       {showAddHolding && (
         <AddHoldingModal onAdd={handleAddHolding} onClose={() => setShowAddHolding(false)} />
       )}
 
+      {/* Wealth View Tab */}
+      {activeTab === 'wealth' && selectedClientId && (
+        <WealthTabView wealthSummary={wealthSummary} loading={wealthLoading} />
+      )}
+
       {/* Holdings List (pre-analysis) */}
-      {loading ? (
+      {activeTab === 'holdings' && loading ? (
         <div className="flex items-center justify-center py-20 text-slate-400">
           <Loader2 size={20} className="animate-spin mr-2" /> Loading holdings...
         </div>
-      ) : selectedClientId && holdings.length === 0 && !analysis ? (
+      ) : activeTab === 'holdings' && selectedClientId && holdings.length === 0 && !analysis ? (
         <div className="text-center py-16 bg-surface-800 border border-white/[0.07] rounded-xl shadow-sm">
           <PieChartIcon size={40} className="mx-auto text-slate-600 mb-3" />
           <p className="text-slate-400 text-sm">No holdings added yet. Click "Add Holding" to start building the portfolio.</p>
         </div>
-      ) : holdings.length > 0 && !analysis ? (
+      ) : activeTab === 'holdings' && holdings.length > 0 && !analysis ? (
         <div className="bg-surface-800 border border-white/[0.07] rounded-xl shadow-sm overflow-hidden mb-6">
           <table className="w-full text-sm">
             <thead>
@@ -181,7 +222,7 @@ export default function PortfolioXray() {
       ) : null}
 
       {/* Analysis Results */}
-      {analysis && <AnalysisView analysis={analysis} onDeleteHolding={handleDeleteHolding} />}
+      {activeTab === 'holdings' && analysis && <AnalysisView analysis={analysis} onDeleteHolding={handleDeleteHolding} />}
     </div>
   )
 }
@@ -238,6 +279,117 @@ function AddHoldingModal({ onAdd, onClose }) {
           </div>
         </form>
       </div>
+    </div>
+  )
+}
+
+// ---------- Wealth Tab View ----------
+function WealthTabView({ wealthSummary, loading }) {
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20 text-slate-400">
+        <Loader2 size={20} className="animate-spin mr-2" /> Loading wealth data...
+      </div>
+    )
+  }
+  if (!wealthSummary) return null
+
+  const { summary, buckets, household_by_type } = wealthSummary
+
+  return (
+    <div className="space-y-6">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <SummaryCard label="Total Invested" value={formatCurrency(summary.total_invested)} />
+        <SummaryCard label="Estimated Value" value={formatCurrency(summary.total_estimated_value)} color="text-emerald-400" />
+        <SummaryCard label="Mutual Funds" value={formatCurrency(summary.mf_invested)} />
+        <SummaryCard label="Other Assets" value={formatCurrency(summary.household_estimated_value)} />
+      </div>
+
+      {/* Allocation Buckets */}
+      {buckets && buckets.length > 0 && (
+        <div className="bg-surface-800 border border-white/[0.07] rounded-xl p-6 shadow-sm">
+          <h3 className="text-sm font-semibold text-slate-100 mb-4 uppercase tracking-wide flex items-center gap-2">
+            <Wallet size={14} /> Wealth Allocation
+          </h3>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <ResponsiveContainer width="100%" height={250}>
+              <PieChart>
+                <Pie
+                  data={buckets}
+                  dataKey="estimated_value"
+                  nameKey="label"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={90}
+                  label={({ label, pct_of_total }) => `${label} ${pct_of_total}%`}
+                  labelLine={true}
+                >
+                  {buckets.map((_, i) => (
+                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(v) => formatCurrency(v)} />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="space-y-3">
+              {buckets.map((b, i) => (
+                <div key={b.key}>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-slate-400 font-medium">{b.label}</span>
+                    <span className="text-slate-100 font-semibold">{formatCurrency(b.estimated_value)} ({b.pct_of_total}%)</span>
+                  </div>
+                  <div className="w-full h-2 bg-white/[0.06] rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{ width: `${Math.min(b.pct_of_total, 100)}%`, backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Non-MF Asset Groups */}
+      {household_by_type && household_by_type.length > 0 && (
+        <div className="bg-surface-800 border border-white/[0.07] rounded-xl shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-white/[0.06]">
+            <h3 className="text-sm font-semibold text-slate-100 uppercase tracking-wide flex items-center gap-2">
+              <Landmark size={14} /> Non-MF Assets
+            </h3>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-white/[0.02] border-b border-white/[0.06]">
+                <th className="text-left p-4 text-slate-400 font-medium">Asset Type</th>
+                <th className="text-right p-4 text-slate-400 font-medium">Count</th>
+                <th className="text-right p-4 text-slate-400 font-medium">Invested</th>
+                <th className="text-right p-4 text-slate-400 font-medium">Estimated Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {household_by_type.map(group => (
+                <tr key={group.asset_type} className="border-b border-white/[0.04] hover:bg-white/[0.04]">
+                  <td className="p-4 font-medium text-slate-100">{group.label}</td>
+                  <td className="p-4 text-right text-slate-500">{group.count}</td>
+                  <td className="p-4 text-right text-slate-100">{formatCurrency(group.invested)}</td>
+                  <td className="p-4 text-right font-medium text-emerald-400">{formatCurrency(group.estimated_value)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {(!household_by_type || household_by_type.length === 0) && summary.household_assets_count === 0 && (
+        <div className="text-center py-12 bg-surface-800 border border-white/[0.07] rounded-xl">
+          <Landmark size={36} className="mx-auto text-slate-600 mb-3" />
+          <p className="text-slate-400 text-sm">No non-MF assets recorded.</p>
+          <p className="text-slate-600 text-xs mt-1">Add assets via the Wealth Overview page.</p>
+        </div>
+      )}
     </div>
   )
 }

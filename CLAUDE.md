@@ -58,7 +58,8 @@ MutualFund/
 │   │   │   ├── FundIntelligence.jsx    # Module 1: Fund search, compare, SIP backtest, categories
 │   │   │   ├── ClientCRM.jsx           # Module 2: Client database, notes, reviews, tags
 │   │   │   ├── ClientProfile.jsx       # Module 2b: 5-step risk profiling wizard
-│   │   │   ├── PortfolioXray.jsx       # Module 3: Portfolio analysis, allocation, overlap
+│   │   │   ├── PortfolioXray.jsx       # Module 3: Portfolio analysis, allocation, overlap + wealth tab
+│   │   │   ├── WealthView.jsx          # Module 3b: Unified household wealth view (MF + non-MF assets)
 │   │   │   ├── GoalPlanner.jsx         # Module 4: Life goals, SIP planning, projections
 │   │   │   ├── TaxOptimizer.jsx        # Module 5: Tax analysis, harvesting, estimator
 │   │   │   ├── ReportGenerator.jsx     # Module 6: AI-powered branded PDF reports
@@ -74,7 +75,7 @@ MutualFund/
 │   │   │   ├── ClientContext.jsx # Shared client state across pages
 │   │   │   └── AuthContext.jsx   # Login/logout, session checking, auth state
 │   │   ├── services/
-│   │   │   └── api.js           # 60+ API call functions (funds, clients, portfolio, goals, tax, reports, profiling, scoring, CAS)
+│   │   │   └── api.js           # 70+ API call functions (funds, clients, portfolio, goals, tax, reports, profiling, scoring, CAS, assets, wealth)
 │   │   ├── hooks/
 │   │   │   └── useFundSearch.js # Debounced fund search hook (300ms)
 │   │   └── lib/
@@ -192,11 +193,12 @@ All routes prefixed with `/api`. Auth required unless noted.
 
 | Path | Page | Description |
 |------|------|-------------|
-| `/` | Dashboard | AUM, market pulse, quick actions, profiling summary |
+| `/` | Dashboard | AUM, total wealth, market pulse, quick actions, profiling summary |
 | `/fund-intelligence` | FundIntelligence | Fund search, compare, SIP backtest, category heatmap |
 | `/crm` | ClientCRM | Client database, notes, reviews, tags |
 | `/profile/:clientId` | ClientProfile | 5-step risk profiling wizard |
-| `/portfolio-xray` | PortfolioXray | Portfolio analysis, allocation, overlap |
+| `/portfolio-xray` | PortfolioXray | Portfolio analysis, allocation, overlap + wealth tab |
+| `/wealth` | WealthView | Unified household wealth view (MF + non-MF asset CRUD, allocation charts) |
 | `/goal-planner` | GoalPlanner | Life goals, SIP planning, projections |
 | `/tax-optimizer` | TaxOptimizer | Tax analysis, harvesting, estimator |
 | `/report-generator` | ReportGenerator | AI-powered branded PDF reports |

@@ -11,6 +11,7 @@ export function ClientProvider({ children }) {
   const [clients, setClients] = useState([])
   const [selectedClient, setSelectedClientState] = useState(null)
   const [selectedClientHoldings, setSelectedClientHoldings] = useState([])
+  const [selectedClientAssets, setSelectedClientAssets] = useState([])
   const [loading, setLoading] = useState(false)
 
   const refreshClients = useCallback(async () => {
@@ -30,19 +31,23 @@ export function ClientProvider({ children }) {
     if (!id) {
       setSelectedClientState(null)
       setSelectedClientHoldings([])
+      setSelectedClientAssets([])
       return
     }
     setLoading(true)
     try {
-      const [client, portfolio] = await Promise.all([
+      const [client, portfolio, assetsData] = await Promise.all([
         api.getClient(id),
         api.getPortfolio(id),
+        api.getClientAssets(id),
       ])
       setSelectedClientState(client)
       setSelectedClientHoldings(portfolio.holdings || [])
+      setSelectedClientAssets(assetsData.assets || [])
     } catch (err) {
       setSelectedClientState(null)
       setSelectedClientHoldings([])
+      setSelectedClientAssets([])
     } finally {
       setLoading(false)
     }
@@ -53,6 +58,7 @@ export function ClientProvider({ children }) {
       clients,
       selectedClient,
       selectedClientHoldings,
+      selectedClientAssets,
       loading,
       selectClient,
       refreshClients,

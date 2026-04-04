@@ -227,3 +227,35 @@ export function getCasHoldings(clientId) {
 export function clearCasHoldings(clientId) {
   return request(`/cas/${clientId}`, { method: 'DELETE' })
 }
+
+// ---- Household Assets ----
+
+export function getAssetTypes() {
+  return request('/assets/types')
+}
+
+export function getClientAssets(clientId) {
+  return request(`/assets/${clientId}`)
+}
+
+export function addClientAsset(clientId, data) {
+  return request(`/assets/${clientId}`, { method: 'POST', body: JSON.stringify(data) })
+}
+
+export function updateClientAsset(clientId, assetId, data) {
+  return request(`/assets/${clientId}/${assetId}`, { method: 'PUT', body: JSON.stringify(data) })
+}
+
+export function deleteClientAsset(clientId, assetId) {
+  return request(`/assets/${clientId}/${assetId}`, { method: 'DELETE' })
+}
+
+// ---- Wealth Summary ----
+
+export function getWealthSummary(clientId) {
+  return request(`/wealth/${clientId}/summary`)
+}
+
+export function getTotalWealth() {
+  return request('/wealth/total')
+}

@@ -26,7 +26,8 @@ MutualFund/
 │   │   ├── factsheets.js       # AMC factsheet pipeline triggers (fetch/extract/store)
 │   │   ├── devlog.js           # Database stats, metrics coverage, diagnostic info
 │   │   ├── assets.js           # Household assets CRUD (non-MF: stocks, FDs, insurance, etc.)
-│   │   └── wealth.js           # Aggregated wealth summary (MF + household assets)
+│   │   ├── wealth.js           # Aggregated wealth summary (MF + household assets)
+│   │   └── householdTax.js     # Household asset tax analysis, tax rules endpoint
 │   ├── services/
 │   │   ├── mfapi.js            # mfapi.in API wrapper (NAV history, latest NAV)
 │   │   ├── amfi.js             # AMFI NAV feed sync (bulk fund data)
@@ -41,7 +42,8 @@ MutualFund/
 │   │   ├── pdfFetcher.js       # PDF download (20MB limit) + AMC website link scraping
 │   │   ├── monteCarloEngine.js # Goal survival simulations (t-distribution, stress scenarios)
 │   │   ├── amcRegistry.js      # URLs and metadata for 15+ Indian AMCs
-│   │   └── assetValuation.js   # Current-value estimation for non-MF assets (FD, PPF, SGB, etc.)
+│   │   ├── assetValuation.js   # Current-value estimation for non-MF assets (FD, PPF, SGB, etc.)
+│   │   └── taxRulesRegistry.js # Tax rules per asset class (Budget 2024), computeAssetTax()
 │   ├── utils/
 │   │   ├── fundClassification.js # isEquityFund, getCategoryRiskLevel, getAllocationBucket, getBenchmarkSchemeCode
 │   │   └── assetClassification.js # Asset type taxonomy, tax/liquidity classification, wealth buckets
@@ -61,7 +63,7 @@ MutualFund/
 │   │   │   ├── PortfolioXray.jsx       # Module 3: Portfolio analysis, allocation, overlap + wealth tab
 │   │   │   ├── WealthView.jsx          # Module 3b: Unified household wealth view (MF + non-MF assets)
 │   │   │   ├── GoalPlanner.jsx         # Module 4: Life goals, SIP planning, projections
-│   │   │   ├── TaxOptimizer.jsx        # Module 5: Tax analysis, harvesting, estimator
+│   │   │   ├── TaxOptimizer.jsx        # Module 5: MF tax + household asset tax (tabbed), harvesting, estimator
 │   │   │   ├── ReportGenerator.jsx     # Module 6: AI-powered branded PDF reports
 │   │   │   ├── Recommendations.jsx     # Module 7: Fund scoring results + SIP allocation
 │   │   │   └── DevLog.jsx              # System health: DB stats, API status, metrics coverage
@@ -133,7 +135,7 @@ npx vite build       # Production build to dist/
 - **Session Auth**: Password-based login with express-session; all routes except `/auth/*`, `/health`, `/dev/status` require `session.authenticated`
 - **NAV Cache**: `nav_cache` SQLite table with 24h TTL avoids repeated mfapi.in hits; `batchPrefetchNavs()` fetches multiple schemes in parallel
 - **SIP Date Handling**: Fixed base date + monthOffset approach (not Date.setMonth) to avoid date drift; day clamped to 28 max
-- **Tax Rules**: Budget 2024 rates — Equity STCG 20%, LTCG 12.5% (exempt up to 1.25L), Debt at 30% slab
+- **Tax Rules**: Budget 2024 rates — Equity STCG 20%, LTCG 12.5% (exempt up to 1.25L), Debt at 30% slab. `taxRulesRegistry.js` extends this to all household asset types (real estate, gold, NPS, insurance, PPF/EPF, SGB) with per-taxClass rules
 - **Fund Classification**: `fundClassification.js` — `isEquityFund()`, `getCategoryRiskLevel()`, `getAllocationBucket()` all use AMFI category keywords
 - **Scoring Engine**: Slot-based fund recommendations (ELSS, Large Cap, Flexi Cap, Mid Cap, Small Cap, Index, Multi Cap, etc.) with hard filters (Sharpe, alpha, drawdown) and composite scoring
 - **Risk Profiling**: 5-step questionnaire → risk capacity + tolerance scores → effective score → equity/debt/gold allocation %
@@ -179,7 +181,7 @@ All routes prefixed with `/api`. Auth required unless noted.
 | `/clients/*` | Client CRM | CRUD, notes, review scheduling, tags, stats |
 | `/portfolio/*` | Portfolio X-Ray | Holdings CRUD, analysis (allocation, overlap, underperformers, correlation) |
 | `/goals/*` | Goal Planner | Goal CRUD, SIP calculator, summary |
-| `/tax/*` | Tax Optimizer | Tax analysis, harvesting opportunities, standalone estimator |
+| `/tax/*` | Tax Optimizer | MF tax analysis, harvesting opportunities, standalone estimator, household asset tax analysis, tax rules |
 | `/reports/*` | Report Generator | AI report generation (requires ANTHROPIC_API_KEY) |
 | `/profiling/*` | Risk Profiling | Aggregate stats, get/update client profiles with questionnaire |
 | `/scoring/*` | Fund Scoring | Compute fund metrics, check job progress, score funds for client |

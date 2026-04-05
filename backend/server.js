@@ -17,6 +17,7 @@ import factsheetsRouter from './routes/factsheets.js'
 import devlogRouter from './routes/devlog.js'
 import assetsRouter from './routes/assets.js'
 import wealthRouter from './routes/wealth.js'
+import householdTaxRouter from './routes/householdTax.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const app = express()
@@ -95,6 +96,7 @@ app.use('/api', casRouter)
 app.use('/api', factsheetsRouter)
 app.use('/api', assetsRouter)
 app.use('/api', wealthRouter)
+app.use('/api', householdTaxRouter)
 
 // ---- Static file serving (production) ----
 

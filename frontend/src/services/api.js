@@ -172,6 +172,15 @@ export function estimateTax(data) {
   return request('/tax/estimate', { method: 'POST', body: JSON.stringify(data) })
 }
 
+export function getHouseholdTax(clientId, slabRate) {
+  const qs = slabRate ? `?slab_rate=${slabRate}` : ''
+  return request(`/tax/${clientId}/household${qs}`)
+}
+
+export function getTaxRules() {
+  return request('/tax/rules')
+}
+
 // ---- AI Report Generator ----
 
 export function getReportTypes() {

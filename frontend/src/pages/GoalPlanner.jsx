@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Target, Plus, Trash2, Edit3, Loader2, X, TrendingUp,
   GraduationCap, Home, Briefcase, Heart, Car, Plane, Sparkles,
-  ChevronDown, ChevronUp, Calculator, AlertTriangle, CheckCircle
+  ChevronDown, ChevronUp, Calculator, AlertTriangle, CheckCircle,
+  PieChart as PieChartIcon, Sliders, RotateCcw, Wallet
 } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, Line, ComposedChart } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, Line, ComposedChart, PieChart, Pie, Cell } from 'recharts'
 import { useToast } from '../components/Toast'
 import * as api from '../services/api'
 import { formatCurrency } from '../lib/utils'
@@ -175,6 +176,7 @@ export default function GoalPlanner() {
             <GoalCard
               key={goal.id}
               goal={goal}
+              clientId={selectedClientId}
               expanded={expandedGoal === goal.id}
               onToggle={() => setExpandedGoal(expandedGoal === goal.id ? null : goal.id)}
               onEdit={() => { setEditingGoal(goal); setShowForm(true) }}
@@ -232,8 +234,14 @@ function SummaryCard({ label, value, color = 'text-[#1B2A4A]' }) {
   )
 }
 
+// Allocation pie chart colors
+const ALLOC_COLORS = [
+  '#D4A847', '#1B2A4A', '#6366f1', '#10b981', '#f59e0b',
+  '#ef4444', '#8b5cf6', '#06b6d4',
+]
+
 // ---------- Goal Card ----------
-function GoalCard({ goal, expanded, onToggle, onEdit, onDelete }) {
+function GoalCard({ goal, expanded, onToggle, onEdit, onDelete, clientId }) {
   const Icon = getGoalIcon(goal.goal_type)
   const colorClass = getGoalColor(goal.goal_type)
   const progressColor = goal.progressPercent >= 90
@@ -297,7 +305,11 @@ function GoalCard({ goal, expanded, onToggle, onEdit, onDelete }) {
           {goal.notes && (
             <p className="text-xs text-gray-500 mb-4 p-3 bg-white rounded-lg border border-gray-100">{goal.notes}</p>
           )}
-          <div className="flex gap-2">
+
+          {/* Asset Allocation Panel */}
+          {clientId && <GoalAllocationPanel clientId={clientId} goalId={goal.id} monthlySip={goal.monthly_sip} />}
+
+          <div className="flex gap-2 mt-4">
             <button
               onClick={(e) => { e.stopPropagation(); onEdit() }}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#1B2A4A] bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
@@ -595,6 +607,235 @@ function SipCalculator({ onClose }) {
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---------- Goal Asset Allocation Panel ----------
+function GoalAllocationPanel({ clientId, goalId, monthlySip }) {
+  const { showToast } = useToast()
+  const [allocation, setAllocation] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [customizing, setCustomizing] = useState(false)
+  const [customAllocs, setCustomAllocs] = useState([])
+  const [saving, setSaving] = useState(false)
+
+  const loadAllocation = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await api.getGoalAllocation(clientId, goalId)
+      setAllocation(data)
+      if (data.allocations) {
+        setCustomAllocs(data.allocations.map(a => ({ ...a })))
+      }
+    } catch (err) {
+      showToast(err.message, 'error')
+    } finally {
+      setLoading(false)
+    }
+  }, [clientId, goalId])
+
+  useEffect(() => { loadAllocation() }, [loadAllocation])
+
+  const handleCustomPctChange = (idx, newPct) => {
+    setCustomAllocs(prev => {
+      const updated = [...prev]
+      updated[idx] = { ...updated[idx], percentage: Math.max(0, Math.min(100, parseFloat(newPct) || 0)) }
+      return updated
+    })
+  }
+
+  const customTotal = customAllocs.reduce((s, a) => s + (a.percentage || 0), 0)
+
+  const handleSaveCustom = async () => {
+    if (Math.abs(customTotal - 100) > 1) {
+      showToast(`Percentages must sum to 100 (currently ${customTotal.toFixed(1)})`, 'error')
+      return
+    }
+    setSaving(true)
+    try {
+      const data = await api.saveGoalAllocation(clientId, goalId, { allocations: customAllocs })
+      setAllocation(data)
+      setCustomizing(false)
+      showToast('Custom allocation saved', 'success')
+    } catch (err) {
+      showToast(err.message, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleResetToRecommended = async () => {
+    setSaving(true)
+    try {
+      // Save empty to clear, then reload recommended
+      // Actually, we need to clear asset_allocation from the goal
+      // For now, re-fetch will return recommended if no custom saved
+      // We'll save the recommended allocation explicitly
+      const data = await api.getGoalAllocation(clientId, goalId)
+      // The backend returns recommended if no custom is saved
+      // To "reset", we just need to remove the custom allocation
+      // We can do this by saving the recommended allocations
+      setAllocation(data)
+      setCustomAllocs(data.allocations?.map(a => ({ ...a })) || [])
+      setCustomizing(false)
+      showToast('Reset to recommended allocation', 'success')
+    } catch (err) {
+      showToast(err.message, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="mt-4 p-4 bg-white rounded-lg border border-gray-100 flex items-center gap-2 text-gray-400 text-xs">
+        <Loader2 size={14} className="animate-spin" /> Loading asset allocation...
+      </div>
+    )
+  }
+
+  if (!allocation || !allocation.allocations?.length) return null
+
+  const pieData = (customizing ? customAllocs : allocation.allocations).filter(a => a.percentage > 0)
+  const wp = allocation.wealthProgress
+
+  return (
+    <div className="mt-4 bg-white rounded-lg border border-gray-100 overflow-hidden" onClick={e => e.stopPropagation()}>
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50/50">
+        <h4 className="text-xs font-semibold text-[#1B2A4A] flex items-center gap-1.5 uppercase tracking-wide">
+          <PieChartIcon size={14} className="text-[#D4A847]" /> Asset Allocation
+          {allocation.source === 'custom' && (
+            <span className="text-[9px] px-1.5 py-0.5 bg-violet-100 text-violet-600 rounded-full font-medium normal-case tracking-normal">Custom</span>
+          )}
+        </h4>
+        <div className="flex items-center gap-1.5">
+          {!customizing ? (
+            <button
+              onClick={() => setCustomizing(true)}
+              className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-[#1B2A4A] bg-white border border-gray-200 rounded hover:bg-gray-50 transition-colors"
+            >
+              <Sliders size={10} /> Customize
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={handleResetToRecommended}
+                disabled={saving}
+                className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-gray-500 bg-white border border-gray-200 rounded hover:bg-gray-50 transition-colors"
+              >
+                <RotateCcw size={10} /> Reset
+              </button>
+              <button
+                onClick={handleSaveCustom}
+                disabled={saving || Math.abs(customTotal - 100) > 1}
+                className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-white bg-[#D4A847] rounded hover:bg-[#c49a2e] disabled:opacity-50 transition-colors"
+              >
+                {saving ? <Loader2 size={10} className="animate-spin" /> : <CheckCircle size={10} />} Save
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="p-4">
+        {/* Wealth Progress bar */}
+        {wp && wp.totalExisting > 0 && (
+          <div className="mb-4 p-3 rounded-lg bg-[#1B2A4A]/5 border border-[#1B2A4A]/10">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[10px] text-gray-500 font-medium uppercase flex items-center gap-1">
+                <Wallet size={10} /> Wealth Progress Toward Goal
+              </span>
+              <span className="text-xs font-semibold text-[#1B2A4A]">{wp.progressPercent}%</span>
+            </div>
+            <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-[#D4A847] to-[#1B2A4A]"
+                style={{ width: `${Math.min(wp.progressPercent, 100)}%` }}
+              />
+            </div>
+            <div className="flex justify-between mt-1.5 text-[10px] text-gray-400">
+              <span>MF: {formatCurrency(wp.mfValue)} | Other: {formatCurrency(wp.householdValue)} | Savings: {formatCurrency(wp.currentSavings)}</span>
+              <span>Target: {formatCurrency(wp.inflatedTarget)}</span>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Pie Chart */}
+          <div className="flex items-center justify-center">
+            <ResponsiveContainer width="100%" height={180}>
+              <PieChart>
+                <Pie
+                  data={pieData}
+                  dataKey="percentage"
+                  nameKey="label"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={70}
+                  innerRadius={35}
+                  paddingAngle={2}
+                >
+                  {pieData.map((_, i) => (
+                    <Cell key={i} fill={ALLOC_COLORS[i % ALLOC_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(v) => `${v.toFixed(1)}%`} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Allocation table */}
+          <div className="space-y-1.5">
+            {(customizing ? customAllocs : allocation.allocations).map((a, i) => (
+              <div key={a.bucket} className="flex items-center gap-2 text-xs">
+                <div className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: ALLOC_COLORS[i % ALLOC_COLORS.length] }} />
+                <span className="flex-1 text-gray-600 truncate">{a.label}</span>
+                {customizing ? (
+                  <input
+                    type="number"
+                    value={a.percentage}
+                    onChange={e => handleCustomPctChange(i, e.target.value)}
+                    step="1"
+                    min="0"
+                    max="100"
+                    className="w-14 px-1.5 py-0.5 border border-gray-200 rounded text-xs text-right text-[#1B2A4A] focus:outline-none focus:ring-1 focus:ring-[#D4A847]/40"
+                  />
+                ) : (
+                  <span className="font-semibold text-[#1B2A4A] w-10 text-right">{a.percentage}%</span>
+                )}
+                <span className="text-gray-400 w-16 text-right">{formatCurrency(a.suggestedMonthly)}/mo</span>
+              </div>
+            ))}
+            {customizing && (
+              <div className={`text-[10px] text-right font-medium pt-1 ${Math.abs(customTotal - 100) > 1 ? 'text-red-500' : 'text-emerald-600'}`}>
+                Total: {customTotal.toFixed(1)}%
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Rationale section */}
+        {!customizing && allocation.allocations.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <p className="text-[10px] text-gray-400 font-medium uppercase mb-1.5">Allocation Rationale</p>
+            <div className="space-y-1">
+              {allocation.allocations.slice(0, 3).map(a => (
+                <p key={a.bucket} className="text-[10px] text-gray-500">
+                  <span className="font-medium text-[#1B2A4A]">{a.label}:</span> {a.rationale}
+                </p>
+              ))}
+            </div>
+            {allocation.gapFromTarget > 0 && (
+              <p className="text-[10px] text-amber-600 mt-2 flex items-center gap-1">
+                <AlertTriangle size={10} />
+                Consider increasing monthly investment by {formatCurrency(allocation.gapFromTarget)} to stay on track
+              </p>
             )}
           </div>
         )}

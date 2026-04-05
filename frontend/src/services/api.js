@@ -162,6 +162,14 @@ export function getGoalsSummary(clientId) {
   return request(`/goals/${clientId}/summary`)
 }
 
+export function getGoalAllocation(clientId, goalId) {
+  return request(`/goals/${clientId}/${goalId}/allocation`)
+}
+
+export function saveGoalAllocation(clientId, goalId, data) {
+  return request(`/goals/${clientId}/${goalId}/allocation`, { method: 'POST', body: JSON.stringify(data) })
+}
+
 // ---- Tax Optimization ----
 
 export function getTaxAnalysis(clientId) {

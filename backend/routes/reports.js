@@ -4,6 +4,8 @@ import { getDb } from '../db/index.js'
 import { batchPrefetchNavs } from '../services/navCache.js'
 import { calculateReturns, getNavOnDate } from '../services/calculations.js'
 import { isEquityFund } from '../utils/fundClassification.js'
+import { estimateCurrentValue } from '../services/assetValuation.js'
+import { computeAssetTax } from '../services/taxRulesRegistry.js'
 
 const router = Router()
 
@@ -37,6 +39,21 @@ const REPORT_TYPES = {
     label: 'Comprehensive Review',
     description: 'Full client review combining portfolio, goals, and tax analysis',
     dataSources: ['portfolio', 'holdings', 'goals', 'tax'],
+  },
+  wealth_report: {
+    label: 'Comprehensive Wealth Report',
+    description: 'Unified wealth view covering mutual funds + household assets (FDs, stocks, real estate, gold, NPS, insurance)',
+    dataSources: ['portfolio', 'holdings', 'wealth'],
+  },
+  goal_allocation: {
+    label: 'Goal Progress with Allocation',
+    description: 'Goal tracking with per-goal asset allocation breakdown and multi-asset recommendations',
+    dataSources: ['goals', 'goalAllocations', 'wealth'],
+  },
+  tax_planning: {
+    label: 'Household Tax Planning Report',
+    description: 'Combined MF + household asset tax analysis with Budget 2024 rules across all asset classes',
+    dataSources: ['tax', 'householdTax', 'wealth'],
   },
 }
 
@@ -258,6 +275,93 @@ async function gatherClientData(db, clientId, dataSources) {
     }
   }
 
+  // Wealth: household assets
+  if (dataSources.includes('wealth')) {
+    const assets = db.prepare(
+      'SELECT * FROM household_assets WHERE client_id = ? ORDER BY asset_type, name'
+    ).all(clientId)
+
+    data.householdAssets = assets.map(a => {
+      const estimated = estimateCurrentValue(a)
+      return {
+        name: a.name,
+        asset_type: a.asset_type,
+        asset_subtype: a.asset_subtype,
+        invested_amount: a.invested_amount,
+        current_value: estimated || a.current_value || a.invested_amount,
+        purchase_date: a.purchase_date,
+        maturity_date: a.maturity_date,
+        interest_rate: a.interest_rate,
+        notes: a.notes,
+      }
+    })
+
+    const mfValue = data.portfolioSummary?.currentValue || 0
+    const mfInvested = data.portfolioSummary?.totalInvested || 0
+    const assetValue = data.householdAssets.reduce((s, a) => s + (a.current_value || 0), 0)
+    const assetInvested = data.householdAssets.reduce((s, a) => s + (a.invested_amount || 0), 0)
+
+    data.wealthSummary = {
+      mf_current_value: mfValue,
+      mf_invested: mfInvested,
+      household_current_value: Math.round(assetValue),
+      household_invested: Math.round(assetInvested),
+      total_wealth: Math.round(mfValue + assetValue),
+      total_invested: Math.round(mfInvested + assetInvested),
+      total_gain: Math.round((mfValue + assetValue) - (mfInvested + assetInvested)),
+      asset_type_breakdown: {},
+    }
+
+    // Group by asset type
+    for (const a of data.householdAssets) {
+      if (!data.wealthSummary.asset_type_breakdown[a.asset_type]) {
+        data.wealthSummary.asset_type_breakdown[a.asset_type] = { count: 0, value: 0 }
+      }
+      data.wealthSummary.asset_type_breakdown[a.asset_type].count++
+      data.wealthSummary.asset_type_breakdown[a.asset_type].value += a.current_value || 0
+    }
+  }
+
+  // Goal allocations
+  if (dataSources.includes('goalAllocations') && data.goals) {
+    const goalsWithAlloc = db.prepare(
+      'SELECT id, goal_name, asset_allocation FROM client_goals WHERE client_id = ? AND asset_allocation IS NOT NULL'
+    ).all(clientId)
+
+    data.goalAllocations = goalsWithAlloc.map(g => {
+      let allocation = null
+      try { allocation = JSON.parse(g.asset_allocation) } catch {}
+      return { goal_id: g.id, goal_name: g.goal_name, allocation }
+    }).filter(g => g.allocation)
+  }
+
+  // Household tax analysis
+  if (dataSources.includes('householdTax')) {
+    const assets = db.prepare(
+      'SELECT * FROM household_assets WHERE client_id = ?'
+    ).all(clientId)
+
+    const profile = db.prepare('SELECT tax_slab FROM client_profiles WHERE client_id = ?').get(clientId)
+    const slabRate = profile?.tax_slab ? parseFloat(profile.tax_slab) / 100 : 0.30
+
+    data.householdTaxAnalysis = assets.map(a => {
+      const estimated = estimateCurrentValue(a)
+      const currentVal = estimated || a.current_value || a.invested_amount
+      const taxResult = computeAssetTax(a, currentVal, slabRate)
+      return {
+        name: a.name,
+        asset_type: a.asset_type,
+        invested: a.invested_amount,
+        current_value: currentVal,
+        gain: Math.round(currentVal - a.invested_amount),
+        ...taxResult,
+      }
+    })
+
+    const totalHouseholdTax = data.householdTaxAnalysis.reduce((s, a) => s + (a.tax_amount || 0), 0)
+    data.householdTaxTotal = Math.round(totalHouseholdTax)
+  }
+
   // Client notes
   const notes = db.prepare(
     'SELECT note, created_at FROM client_notes WHERE client_id = ? ORDER BY created_at DESC LIMIT 10'
@@ -388,6 +492,47 @@ ${data.recentNotes.map(n => `- [${n.created_at}] ${n.note}`).join('\n')}
 `
   }
 
+  // Wealth summary section
+  if (data.wealthSummary) {
+    const ws = data.wealthSummary
+    prompt += `\n**Unified Wealth Summary:**
+- Total Wealth: Rs ${ws.total_wealth.toLocaleString('en-IN')} (Invested: Rs ${ws.total_invested.toLocaleString('en-IN')})
+- MF Portfolio: Rs ${ws.mf_current_value.toLocaleString('en-IN')}
+- Household Assets: Rs ${ws.household_current_value.toLocaleString('en-IN')}
+- Overall Gain: Rs ${ws.total_gain.toLocaleString('en-IN')}
+`
+    const breakdown = Object.entries(ws.asset_type_breakdown)
+    if (breakdown.length > 0) {
+      prompt += `- Asset Breakdown: ${breakdown.map(([type, d]) => `${type}: Rs ${Math.round(d.value).toLocaleString('en-IN')} (${d.count})`).join(', ')}\n`
+    }
+  }
+
+  // Household assets detail
+  if (data.householdAssets && data.householdAssets.length > 0) {
+    prompt += `\n**Household Assets (Non-MF):**
+${data.householdAssets.map(a => `- ${a.name} (${a.asset_type}) | Invested: Rs ${fmtRs(a.invested_amount)} | Current: Rs ${fmtRs(a.current_value)}${a.interest_rate ? ' | Rate: ' + a.interest_rate + '%' : ''}${a.maturity_date ? ' | Matures: ' + a.maturity_date : ''}`).join('\n')}
+`
+  }
+
+  // Goal allocations
+  if (data.goalAllocations && data.goalAllocations.length > 0) {
+    prompt += `\n**Goal Asset Allocations:**
+${data.goalAllocations.map(g => {
+  const alloc = g.allocation
+  const parts = Object.entries(alloc).filter(([, v]) => v > 0).map(([k, v]) => `${k}: ${typeof v === 'number' && v <= 1 ? (v * 100).toFixed(0) : v}%`)
+  return `- ${g.goal_name}: ${parts.join(', ')}`
+}).join('\n')}
+`
+  }
+
+  // Household tax analysis
+  if (data.householdTaxAnalysis && data.householdTaxAnalysis.length > 0) {
+    prompt += `\n**Household Asset Tax Analysis (Budget 2024):**
+${data.householdTaxAnalysis.map(a => `- ${a.name} (${a.asset_type}) | Gain: Rs ${fmtRs(a.gain)} | Tax: Rs ${fmtRs(a.tax_amount || 0)} | ${a.tax_type || 'N/A'}`).join('\n')}
+- Total Household Asset Tax: Rs ${fmtRs(data.householdTaxTotal || 0)}
+`
+  }
+
   if (customInstructions) {
     prompt += `\n**Additional Instructions from Advisor:**
 ${customInstructions}
@@ -420,6 +565,31 @@ ${customInstructions}
 2. Goals & Tax Summary (brief status of each, tax liability)
 3. Priority Action Items (top 3-5 numbered recommendations)
 4. Disclaimer (one line)`
+      break
+    case 'wealth_report':
+      prompt += `\nGenerate a Comprehensive Wealth Report with these sections ONLY:
+1. Wealth Overview (total wealth, MF vs non-MF split, gain)
+2. Mutual Fund Portfolio (top holdings, allocation, performance summary)
+3. Household Assets (key assets by type — FDs, stocks, real estate, gold, NPS, insurance)
+4. Asset Allocation Assessment (diversification across asset classes, risk distribution)
+5. Recommendations (rebalancing, consolidation, gaps in coverage — 3-5 crisp points)
+6. Disclaimer (one line)`
+      break
+    case 'goal_allocation':
+      prompt += `\nGenerate a Goal Progress Report with Allocation Breakdown with these sections ONLY:
+1. Goal Status Overview (each goal: target, timeline, current progress, SIP adequacy)
+2. Per-Goal Asset Allocation (for each goal, show the recommended allocation — equity MF, debt MF, stocks, FD, gold, PPF, NPS, ELSS etc.)
+3. Allocation Rationale (brief: why this mix given horizon, risk profile, and tax efficiency)
+4. Action Items (SIP adjustments, asset rebalancing per goal — 3-5 points)
+5. Disclaimer (one line)`
+      break
+    case 'tax_planning':
+      prompt += `\nGenerate a comprehensive Tax Planning Report with these sections ONLY:
+1. MF Tax Position (equity STCG/LTCG, debt gains, estimated MF tax liability — compact)
+2. Household Asset Tax (tax on FDs, stocks, real estate, gold, NPS etc. per Budget 2024 rules)
+3. Combined Tax Summary (total estimated tax across MF + household assets)
+4. Tax-Saving Strategies (harvesting, ELSS/PPF/NPS utilization, holding period optimization — 3-5 actionable points)
+5. Disclaimer (one line)`
       break
   }
 

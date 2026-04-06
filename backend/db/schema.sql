@@ -149,6 +149,35 @@ CREATE INDEX IF NOT EXISTS idx_cas_holdings_client ON cas_holdings(client_id);
 CREATE INDEX IF NOT EXISTS idx_cas_holdings_scheme ON cas_holdings(scheme_code);
 CREATE INDEX IF NOT EXISTS idx_cas_holdings_folio ON cas_holdings(folio_number);
 
+-- CAS transaction history (purchases, redemptions, switches, dividends)
+CREATE TABLE IF NOT EXISTS cas_transactions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_id INTEGER NOT NULL,
+  folio_number TEXT,
+  scheme_code TEXT,
+  scheme_name TEXT,
+  amc TEXT,
+  isin TEXT,
+  transaction_type TEXT NOT NULL CHECK(transaction_type IN (
+    'purchase', 'redemption', 'switch_in', 'switch_out',
+    'dividend_payout', 'dividend_reinvest', 'sip', 'stp_in', 'stp_out', 'other'
+  )),
+  transaction_date TEXT,
+  amount REAL,
+  units REAL,
+  nav REAL,
+  description TEXT,
+  source TEXT DEFAULT 'cas_upload' CHECK(source IN ('manual', 'cas_upload', 'cas_api')),
+  imported_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_cas_txn_client ON cas_transactions(client_id);
+CREATE INDEX IF NOT EXISTS idx_cas_txn_folio ON cas_transactions(folio_number);
+CREATE INDEX IF NOT EXISTS idx_cas_txn_scheme ON cas_transactions(scheme_code);
+CREATE INDEX IF NOT EXISTS idx_cas_txn_date ON cas_transactions(transaction_date);
+CREATE INDEX IF NOT EXISTS idx_cas_txn_type ON cas_transactions(transaction_type);
+
 -- Fund recommendations from scoring engine
 CREATE TABLE IF NOT EXISTS fund_recommendations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

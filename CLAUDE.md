@@ -10,7 +10,7 @@ MutualFund/
 │   ├── server.js               # Entry point, auth middleware, mounts all routers under /api
 │   ├── db/
 │   │   ├── index.js            # SQLite (better-sqlite3) singleton with WAL mode
-│   │   ├── schema.sql          # 13 tables (see Database Schema below)
+│   │   ├── schema.sql          # 14 tables (see Database Schema below)
 │   │   └── tejova.db           # SQLite database file (gitignored)
 │   ├── routes/
 │   │   ├── funds.js            # Fund search, NAV, returns, SIP backtest, category heatmap
@@ -18,11 +18,11 @@ MutualFund/
 │   │   ├── portfolio.js        # Holdings CRUD, portfolio analysis (allocation, overlap, underperformers)
 │   │   ├── goals.js            # Goal CRUD, SIP calculator, projections, asset allocation endpoints
 │   │   ├── tax.js              # Tax analysis (Budget 2024 rules), harvesting opportunities
-│   │   ├── reports.js          # AI report generation via Claude API
+│   │   ├── reports.js          # AI report generation via Claude API (7 report types incl. wealth-aware)
 │   │   ├── backup.js           # Database backup download
 │   │   ├── profiling.js        # Risk profiling stats, get/update client profiles
 │   │   ├── scoring.js          # Fund metrics computation, scoring by risk/quality
-│   │   ├── cas.js              # CAS text parsing, import, holdings retrieval
+│   │   ├── cas.js              # CAS text parsing, import, holdings/transactions retrieval
 │   │   ├── factsheets.js       # AMC factsheet pipeline triggers (fetch/extract/store)
 │   │   ├── devlog.js           # Database stats, metrics coverage, diagnostic info
 │   │   ├── assets.js           # Household assets CRUD (non-MF: stocks, FDs, insurance, etc.)
@@ -35,7 +35,7 @@ MutualFund/
 │   │   ├── navCache.js         # SQLite-backed NAV cache with 24h TTL, batch prefetch
 │   │   ├── scoringEngine.js    # Fund scoring engine (945 lines) — slot-based recommendations
 │   │   ├── profileAnalyzer.js  # Risk capacity/tolerance scoring, asset allocation recommendations
-│   │   ├── casParser.js        # CAMS/KFintech CAS text parser (regex-based)
+│   │   ├── casParser.js        # CAMS/KFintech CAS text parser (regex-based, transactions + dividends)
 │   │   ├── metricsJob.js       # Background job: computes fund metrics for 250+ NAV data points
 │   │   ├── factsheetPipeline.js # Orchestrates AMC factsheet fetch → extract → store
 │   │   ├── factsheetExtractor.js # Claude API-based PDF extraction of fund data
@@ -148,11 +148,13 @@ npx vite build       # Production build to dist/
 - **SPA Fallback**: Non-API routes serve `frontend/dist/index.html` for client-side routing
 - **Multi-Asset Foundation**: `household_assets` table stores non-MF assets (stocks, FDs, insurance, real estate, PF/PPF, NPS, gold, EPF). MF holdings remain in `client_holdings`/`cas_holdings`. Wealth summary aggregates both layers.
 - **Goal Allocation Engine**: `goalAllocationEngine.js` maps goals to multi-asset allocations (equity MF, debt MF, stocks, FD, gold, PPF, NPS, ELSS) based on time horizon (<3y debt-heavy, 3-7y balanced, >7y equity-heavy), client risk profile, and tax optimization (NPS for retirement, ELSS/PPF for tax saving). Custom allocations stored as JSON in `client_goals.asset_allocation`
-- **MF-Specialist Scope**: Scoring engine, fund metrics, calculations, CAS import, factsheet pipeline, and fund classification remain MF-only. Non-MF assets use simpler valuation (assetValuation.js) and manual entry
+- **MF-Specialist Scope**: Scoring engine, fund metrics, calculations, factsheet pipeline, and fund classification remain MF-only. Non-MF assets use simpler valuation (assetValuation.js) and manual entry
+- **CAS Transaction Parsing**: `casParser.js` extracts transaction history (purchases, redemptions, switches, SIPs, STPs) and dividend records from CAS text using date-anchored regex. Transactions stored in `cas_transactions` table with type classification. Scheme code matching uses progressive relaxation: exact ISIN → strict multi-word name → key-identifier fallback
+- **Wealth-Aware Reports**: 7 report types total — 4 original MF-focused + 3 wealth-aware (Comprehensive Wealth, Goal+Allocation, Household Tax Planning). Wealth reports inject household asset data, goal allocation breakdowns, and combined MF+non-MF tax analysis into Claude API prompts. Frontend shows conditional summary cards (wealth vs portfolio) based on report type
 
 ## Database Schema (SQLite)
 
-13 tables in `backend/db/schema.sql`. Schema auto-creates on first connection. DB file: `backend/db/tejova.db`. Backup: `GET /api/backup`.
+14 tables in `backend/db/schema.sql`. Schema auto-creates on first connection. DB file: `backend/db/tejova.db`. Backup: `GET /api/backup`.
 
 | Table | Purpose |
 |-------|---------|
@@ -164,6 +166,7 @@ npx vite build       # Production build to dist/
 | `nav_cache` | NAV history cache with 24h TTL (scheme_code + date composite PK) |
 | `client_profiles` | Risk profiling data: income, expenses, questionnaire responses, capacity/tolerance/effective scores, recommended equity/debt/gold % (FK → clients) |
 | `cas_holdings` | CAS-imported holdings with source enum (manual/cas_upload/cas_api), folio, ISIN, units, NAV (FK → clients) |
+| `cas_transactions` | CAS transaction history: purchases, redemptions, switches, dividends, SIPs, STPs (FK → clients) |
 | `fund_recommendations` | Scored fund picks per client: composite_score, category_fit, risk_alignment, tax_efficiency, overlap_penalty, recommended_sip (FK → clients) |
 | `fund_metrics` | Computed metrics per fund: std_deviation, max_drawdown, Sharpe/Sortino/Calmar ratios, alpha, 1Y/3Y/5Y returns, data quality score (PK: scheme_code) |
 | `fund_factsheets` | Extracted factsheet data: expense_ratio, AUM, manager, top holdings, sector allocation, PE/PB, cap split, investment style |
@@ -184,10 +187,10 @@ All routes prefixed with `/api`. Auth required unless noted.
 | `/portfolio/*` | Portfolio X-Ray | Holdings CRUD, analysis (allocation, overlap, underperformers, correlation) |
 | `/goals/*` | Goal Planner | Goal CRUD, SIP calculator, summary, asset allocation (GET/POST per goal) |
 | `/tax/*` | Tax Optimizer | MF tax analysis, harvesting opportunities, standalone estimator, household asset tax analysis, tax rules |
-| `/reports/*` | Report Generator | AI report generation (requires ANTHROPIC_API_KEY) |
+| `/reports/*` | Report Generator | AI report generation — 7 types incl. wealth, goal allocation, household tax (requires ANTHROPIC_API_KEY) |
 | `/profiling/*` | Risk Profiling | Aggregate stats, get/update client profiles with questionnaire |
 | `/scoring/*` | Fund Scoring | Compute fund metrics, check job progress, score funds for client |
-| `/cas/*` | CAS Import | Parse CAS text, import to holdings, retrieve, clear |
+| `/cas/*` | CAS Import | Parse CAS text (holdings + transactions), import, retrieve, transaction history |
 | `/factsheets/*` | Factsheets | Trigger AMC factsheet pipeline (fetch → extract → store) |
 | `/assets/*` | Household Assets | Non-MF asset CRUD, asset type listing |
 | `/wealth/*` | Wealth Summary | Aggregated wealth view (MF + household assets), total wealth |

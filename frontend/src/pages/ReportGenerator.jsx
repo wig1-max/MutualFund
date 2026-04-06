@@ -5,7 +5,7 @@ import { generateReport } from '../services/api'
 import {
   FileText, PieChart, Target, Calculator, ClipboardList,
   Loader2, Printer, Download, Sparkles, ChevronDown, ChevronUp,
-  User, Calendar, AlertTriangle,
+  User, Calendar, AlertTriangle, Landmark, TrendingUp, Receipt,
 } from 'lucide-react'
 
 const REPORT_TYPES = [
@@ -36,6 +36,27 @@ const REPORT_TYPES = [
     description: 'Full review combining portfolio, goals, and tax analysis',
     icon: ClipboardList,
     color: 'from-purple-500 to-purple-600',
+  },
+  {
+    id: 'wealth_report',
+    label: 'Wealth Report',
+    description: 'Unified wealth view covering MF + household assets (FDs, stocks, real estate, gold, NPS)',
+    icon: Landmark,
+    color: 'from-cyan-500 to-cyan-600',
+  },
+  {
+    id: 'goal_allocation',
+    label: 'Goal + Allocation',
+    description: 'Goal progress with per-goal asset allocation breakdown and multi-asset recommendations',
+    icon: TrendingUp,
+    color: 'from-rose-500 to-rose-600',
+  },
+  {
+    id: 'tax_planning',
+    label: 'Household Tax Plan',
+    description: 'Combined MF + household asset tax analysis with Budget 2024 rules across all asset classes',
+    icon: Receipt,
+    color: 'from-orange-500 to-orange-600',
   },
 ]
 
@@ -201,7 +222,7 @@ export default function ReportGenerator() {
           {/* Report Type Selector */}
           <div>
             <h2 className="text-sm font-semibold text-slate-100 mb-3">Report Type</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {REPORT_TYPES.map(type => {
                 const Icon = type.icon
                 const isSelected = selectedType === type.id
@@ -347,8 +368,30 @@ export default function ReportGenerator() {
               </div>
             </div>
 
-            {/* Summary Cards (from raw data) */}
-            {report.data?.portfolioSummary && report.data.portfolioSummary.holdingsCount > 0 && (
+            {/* Summary Cards — Wealth reports show total wealth; others show MF portfolio */}
+            {report.data?.wealthSummary && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-surface-700 border-b border-white/[0.07]">
+                <div className="bg-surface-800 p-4 text-center">
+                  <p className="text-xs text-slate-500 uppercase tracking-wide">Total Wealth</p>
+                  <p className="text-lg font-bold text-slate-100">{formatCurrency(report.data.wealthSummary.total_wealth)}</p>
+                </div>
+                <div className="bg-surface-800 p-4 text-center">
+                  <p className="text-xs text-slate-500 uppercase tracking-wide">MF Portfolio</p>
+                  <p className="text-lg font-bold text-cyan-400">{formatCurrency(report.data.wealthSummary.mf_current_value)}</p>
+                </div>
+                <div className="bg-surface-800 p-4 text-center">
+                  <p className="text-xs text-slate-500 uppercase tracking-wide">Other Assets</p>
+                  <p className="text-lg font-bold text-amber-400">{formatCurrency(report.data.wealthSummary.household_current_value)}</p>
+                </div>
+                <div className="bg-surface-800 p-4 text-center">
+                  <p className="text-xs text-slate-500 uppercase tracking-wide">Total Gain</p>
+                  <p className={`text-lg font-bold ${report.data.wealthSummary.total_gain >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {formatCurrency(report.data.wealthSummary.total_gain)}
+                  </p>
+                </div>
+              </div>
+            )}
+            {!report.data?.wealthSummary && report.data?.portfolioSummary && report.data.portfolioSummary.holdingsCount > 0 && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-surface-700 border-b border-white/[0.07]">
                 <div className="bg-surface-800 p-4 text-center">
                   <p className="text-xs text-slate-500 uppercase tracking-wide">Invested</p>
@@ -369,6 +412,24 @@ export default function ReportGenerator() {
                   <p className={`text-lg font-bold ${report.data.portfolioSummary.gainPercent >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                     {report.data.portfolioSummary.gainPercent}%
                   </p>
+                </div>
+              </div>
+            )}
+
+            {/* Tax summary cards for tax_planning report */}
+            {report.data?.taxSummary && report.data?.householdTaxTotal != null && (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-px bg-surface-700 border-b border-white/[0.07]">
+                <div className="bg-surface-800 p-4 text-center">
+                  <p className="text-xs text-slate-500 uppercase tracking-wide">MF Tax</p>
+                  <p className="text-lg font-bold text-amber-400">{formatCurrency(report.data.taxSummary.estimatedTax)}</p>
+                </div>
+                <div className="bg-surface-800 p-4 text-center">
+                  <p className="text-xs text-slate-500 uppercase tracking-wide">Household Tax</p>
+                  <p className="text-lg font-bold text-orange-400">{formatCurrency(report.data.householdTaxTotal)}</p>
+                </div>
+                <div className="bg-surface-800 p-4 text-center">
+                  <p className="text-xs text-slate-500 uppercase tracking-wide">Combined Tax</p>
+                  <p className="text-lg font-bold text-red-400">{formatCurrency((report.data.taxSummary.estimatedTax || 0) + (report.data.householdTaxTotal || 0))}</p>
                 </div>
               </div>
             )}

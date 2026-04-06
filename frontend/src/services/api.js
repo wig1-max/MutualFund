@@ -245,6 +245,11 @@ export function clearCasHoldings(clientId) {
   return request(`/cas/${clientId}`, { method: 'DELETE' })
 }
 
+export function getCasTransactions(clientId, params = {}) {
+  const qs = new URLSearchParams(params).toString()
+  return request(`/cas/${clientId}/transactions${qs ? '?' + qs : ''}`)
+}
+
 // ---- Household Assets ----
 
 export function getAssetTypes() {

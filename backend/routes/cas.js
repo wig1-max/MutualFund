@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { getDb } from '../db/index.js'
-import { parseCasText, enrichWithSchemeCodes } from '../services/casParser.js'
+import { parseCasText, enrichWithSchemeCodes, enrichTransactionsWithSchemeCodes } from '../services/casParser.js'
 
 const router = Router()
 
@@ -16,65 +16,108 @@ router.post('/cas/:clientId/parse', (req, res) => {
   }
 
   const parsed = parseCasText(cas_text)
-  const enriched = enrichWithSchemeCodes(parsed.folios, db)
+  const enrichedFolios = enrichWithSchemeCodes(parsed.folios, db)
+  const enrichedTxns = enrichTransactionsWithSchemeCodes(parsed.transactions, db)
 
   res.json({
     pan: parsed.pan,
-    folios: enriched,
+    folios: enrichedFolios,
+    transactions: enrichedTxns,
     parsed_count: parsed.parsed_count,
+    transaction_count: parsed.transaction_count,
     raw_lines: parsed.raw_lines,
-    matched_count: enriched.filter(f => f.scheme_code).length,
+    matched_count: enrichedFolios.filter(f => f.scheme_code).length,
+    matched_txn_count: enrichedTxns.filter(t => t.scheme_code).length,
   })
 })
 
-// POST /api/cas/:clientId/import — save parsed folios to cas_holdings
+// POST /api/cas/:clientId/import — save parsed folios and transactions
 router.post('/cas/:clientId/import', (req, res) => {
   const db = getDb()
   const client = db.prepare('SELECT id FROM clients WHERE id = ?').get(req.params.clientId)
   if (!client) return res.status(404).json({ message: 'Client not found' })
 
-  const { folios, replace_existing } = req.body
-  if (!folios || !Array.isArray(folios) || folios.length === 0) {
-    return res.status(400).json({ message: 'folios array is required' })
+  const { folios, transactions, replace_existing } = req.body
+  if ((!folios || !Array.isArray(folios) || folios.length === 0) &&
+      (!transactions || !Array.isArray(transactions) || transactions.length === 0)) {
+    return res.status(400).json({ message: 'folios or transactions array is required' })
   }
 
   const clientId = Number(req.params.clientId)
   const now = new Date().toISOString()
 
-  const insertMany = db.transaction((items) => {
-    if (replace_existing) {
-      db.prepare("DELETE FROM cas_holdings WHERE client_id = ? AND source = 'cas_upload'").run(clientId)
+  const result = db.transaction(() => {
+    let imported_holdings = 0
+    let imported_transactions = 0
+
+    if (folios && folios.length > 0) {
+      if (replace_existing) {
+        db.prepare("DELETE FROM cas_holdings WHERE client_id = ? AND source = 'cas_upload'").run(clientId)
+      }
+
+      const holdingStmt = db.prepare(`
+        INSERT INTO cas_holdings (client_id, folio_number, scheme_code, scheme_name, amc, isin, units, nav, current_value, cost_value, purchase_date, source, fetched_at)
+        VALUES (@client_id, @folio_number, @scheme_code, @scheme_name, @amc, @isin, @units, @nav, @current_value, @cost_value, @purchase_date, @source, @fetched_at)
+      `)
+
+      for (const f of folios) {
+        holdingStmt.run({
+          client_id: clientId,
+          folio_number: f.folio_number || null,
+          scheme_code: f.scheme_code || null,
+          scheme_name: f.scheme_name || null,
+          amc: f.amc || null,
+          isin: f.isin || null,
+          units: f.units || 0,
+          nav: f.nav || 0,
+          current_value: f.current_value || 0,
+          cost_value: f.cost_value || 0,
+          purchase_date: f.purchase_date || null,
+          source: 'cas_upload',
+          fetched_at: now,
+        })
+      }
+      imported_holdings = folios.length
     }
 
-    const stmt = db.prepare(`
-      INSERT INTO cas_holdings (client_id, folio_number, scheme_code, scheme_name, amc, isin, units, nav, current_value, cost_value, purchase_date, source, fetched_at)
-      VALUES (@client_id, @folio_number, @scheme_code, @scheme_name, @amc, @isin, @units, @nav, @current_value, @cost_value, @purchase_date, @source, @fetched_at)
-    `)
+    if (transactions && transactions.length > 0) {
+      if (replace_existing) {
+        db.prepare("DELETE FROM cas_transactions WHERE client_id = ? AND source = 'cas_upload'").run(clientId)
+      }
 
-    for (const f of items) {
-      stmt.run({
-        client_id: clientId,
-        folio_number: f.folio_number || null,
-        scheme_code: f.scheme_code || null,
-        scheme_name: f.scheme_name || null,
-        amc: f.amc || null,
-        isin: f.isin || null,
-        units: f.units || 0,
-        nav: f.nav || 0,
-        current_value: f.current_value || 0,
-        cost_value: f.cost_value || 0,
-        purchase_date: f.purchase_date || null,
-        source: 'cas_upload',
-        fetched_at: now,
-      })
+      const txnStmt = db.prepare(`
+        INSERT INTO cas_transactions (client_id, folio_number, scheme_code, scheme_name, amc, isin, transaction_type, transaction_date, amount, units, nav, description, source)
+        VALUES (@client_id, @folio_number, @scheme_code, @scheme_name, @amc, @isin, @transaction_type, @transaction_date, @amount, @units, @nav, @description, @source)
+      `)
+
+      for (const t of transactions) {
+        txnStmt.run({
+          client_id: clientId,
+          folio_number: t.folio_number || null,
+          scheme_code: t.scheme_code || null,
+          scheme_name: t.scheme_name || null,
+          amc: t.amc || null,
+          isin: t.isin || null,
+          transaction_type: t.transaction_type || 'other',
+          transaction_date: t.transaction_date || null,
+          amount: t.amount || 0,
+          units: t.units || 0,
+          nav: t.nav || 0,
+          description: t.description || null,
+          source: 'cas_upload',
+        })
+      }
+      imported_transactions = transactions.length
     }
 
-    return items.length
+    return { imported_holdings, imported_transactions }
+  })()
+
+  res.status(201).json({
+    message: 'Import complete',
+    imported_count: result.imported_holdings,
+    imported_transactions: result.imported_transactions,
   })
-
-  const imported_count = insertMany(folios)
-
-  res.status(201).json({ message: 'Import complete', imported_count })
 })
 
 // GET /api/cas/:clientId — get all CAS holdings with summary
@@ -105,14 +148,62 @@ router.get('/cas/:clientId', (req, res) => {
   })
 })
 
-// DELETE /api/cas/:clientId — clear all CAS holdings
+// GET /api/cas/:clientId/transactions — get CAS transaction history
+router.get('/cas/:clientId/transactions', (req, res) => {
+  const db = getDb()
+  const client = db.prepare('SELECT id, name FROM clients WHERE id = ?').get(req.params.clientId)
+  if (!client) return res.status(404).json({ message: 'Client not found' })
+
+  const { folio, type } = req.query
+  let sql = 'SELECT * FROM cas_transactions WHERE client_id = ?'
+  const params = [req.params.clientId]
+
+  if (folio) {
+    sql += ' AND folio_number = ?'
+    params.push(folio)
+  }
+  if (type) {
+    sql += ' AND transaction_type = ?'
+    params.push(type)
+  }
+
+  sql += ' ORDER BY transaction_date DESC, id DESC'
+
+  const transactions = db.prepare(sql).all(...params)
+
+  // Summary by type
+  const summary = {}
+  for (const t of transactions) {
+    if (!summary[t.transaction_type]) {
+      summary[t.transaction_type] = { count: 0, total_amount: 0 }
+    }
+    summary[t.transaction_type].count++
+    summary[t.transaction_type].total_amount += t.amount || 0
+  }
+
+  res.json({
+    client,
+    transactions,
+    total_transactions: transactions.length,
+    summary,
+  })
+})
+
+// DELETE /api/cas/:clientId — clear all CAS holdings and transactions
 router.delete('/cas/:clientId', (req, res) => {
   const db = getDb()
   const client = db.prepare('SELECT id FROM clients WHERE id = ?').get(req.params.clientId)
   if (!client) return res.status(404).json({ message: 'Client not found' })
 
-  const result = db.prepare('DELETE FROM cas_holdings WHERE client_id = ?').run(req.params.clientId)
-  res.json({ message: 'CAS holdings cleared', deleted_count: result.changes })
+  const clientId = req.params.clientId
+  const holdingsResult = db.prepare('DELETE FROM cas_holdings WHERE client_id = ?').run(clientId)
+  const txnResult = db.prepare('DELETE FROM cas_transactions WHERE client_id = ?').run(clientId)
+
+  res.json({
+    message: 'CAS data cleared',
+    deleted_count: holdingsResult.changes,
+    deleted_transactions: txnResult.changes,
+  })
 })
 
 // POST /api/cas/:clientId/fetch-live — placeholder for MF Central API

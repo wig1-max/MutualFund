@@ -1,7 +1,17 @@
 import { Router } from 'express'
 import { getDb } from '../db/index.js'
+import { computeGoalAllocation, getClientWealthForGoals } from '../services/goalAllocationEngine.js'
 
 const router = Router()
+
+// Migrate: add asset_allocation column if it doesn't exist
+try {
+  const db = getDb()
+  const cols = db.pragma('table_info(client_goals)')
+  if (!cols.find(c => c.name === 'asset_allocation')) {
+    db.exec("ALTER TABLE client_goals ADD COLUMN asset_allocation TEXT DEFAULT NULL")
+  }
+} catch (_) { /* table may not exist yet — schema.sql handles creation */ }
 
 // SIP calculation helpers
 
@@ -222,7 +232,7 @@ router.post('/goals/calculate', (req, res) => {
   })
 })
 
-// GET /api/goals/:clientId/summary — summary across all goals
+// GET /api/goals/:clientId/summary — summary across all goals (includes wealth progress)
 router.get('/goals/:clientId/summary', (req, res) => {
   const db = getDb()
   const goals = db.prepare(
@@ -236,6 +246,21 @@ router.get('/goals/:clientId/summary', (req, res) => {
   const onTrackCount = enriched.filter(g => g.progressPercent >= 90).length
   const atRiskCount = enriched.filter(g => g.progressPercent < 50).length
 
+  // Wealth progress: how existing assets contribute toward goals
+  let wealthProgress = null
+  try {
+    const wealth = getClientWealthForGoals(req.params.clientId)
+    const totalWealth = wealth.mfValue + wealth.householdTotal + totalCurrentSavings
+    wealthProgress = {
+      mfValue: Math.round(wealth.mfValue),
+      householdValue: Math.round(wealth.householdTotal),
+      currentSavings: Math.round(totalCurrentSavings),
+      totalWealth: Math.round(totalWealth),
+      totalTarget: Math.round(totalTargetCorpus),
+      coveragePercent: totalTargetCorpus > 0 ? Math.round(totalWealth / totalTargetCorpus * 1000) / 10 : 0,
+    }
+  } catch (_) { /* wealth data optional */ }
+
   res.json({
     totalGoals: goals.length,
     totalMonthlySip: Math.round(totalMonthlySip),
@@ -243,7 +268,82 @@ router.get('/goals/:clientId/summary', (req, res) => {
     totalCurrentSavings: Math.round(totalCurrentSavings),
     onTrackCount,
     atRiskCount,
+    wealthProgress,
   })
+})
+
+// GET /api/goals/:clientId/:goalId/allocation — recommended asset allocation for a goal
+router.get('/goals/:clientId/:goalId/allocation', (req, res) => {
+  const db = getDb()
+  const goal = db.prepare(
+    'SELECT * FROM client_goals WHERE id = ? AND client_id = ?'
+  ).get(req.params.goalId, req.params.clientId)
+  if (!goal) return res.status(404).json({ message: 'Goal not found' })
+
+  // Check for saved custom allocation
+  if (goal.asset_allocation) {
+    try {
+      const saved = JSON.parse(goal.asset_allocation)
+      return res.json({ ...saved, source: 'custom' })
+    } catch (_) { /* fall through to computed */ }
+  }
+
+  // Fetch client risk profile
+  const profile = db.prepare(
+    'SELECT * FROM client_profiles WHERE client_id = ?'
+  ).get(req.params.clientId)
+
+  // Fetch existing wealth
+  const wealth = getClientWealthForGoals(req.params.clientId)
+
+  const result = computeGoalAllocation(goal, profile, wealth)
+  res.json({ ...result, source: 'recommended' })
+})
+
+// POST /api/goals/:clientId/:goalId/allocation — save custom asset allocation
+router.post('/goals/:clientId/:goalId/allocation', (req, res) => {
+  const db = getDb()
+  const goal = db.prepare(
+    'SELECT * FROM client_goals WHERE id = ? AND client_id = ?'
+  ).get(req.params.goalId, req.params.clientId)
+  if (!goal) return res.status(404).json({ message: 'Goal not found' })
+
+  const { allocations } = req.body
+  if (!allocations || !Array.isArray(allocations)) {
+    return res.status(400).json({ message: 'allocations array is required' })
+  }
+
+  // Validate percentages sum to ~100
+  const totalPct = allocations.reduce((s, a) => s + (a.percentage || 0), 0)
+  if (Math.abs(totalPct - 100) > 1) {
+    return res.status(400).json({ message: `Allocation percentages must sum to 100 (got ${totalPct.toFixed(1)})` })
+  }
+
+  // Fetch profile and wealth to compute full allocation object
+  const profile = db.prepare(
+    'SELECT * FROM client_profiles WHERE client_id = ?'
+  ).get(req.params.clientId)
+  const wealth = getClientWealthForGoals(req.params.clientId)
+  const computed = computeGoalAllocation(goal, profile, wealth)
+
+  // Override allocations with custom values
+  const customResult = {
+    ...computed,
+    allocations: allocations.map(a => ({
+      bucket: a.bucket,
+      label: a.label || a.bucket,
+      percentage: a.percentage,
+      suggestedMonthly: Math.round((goal.monthly_sip || 0) * a.percentage / 100),
+      expectedReturn: a.expectedReturn || 10,
+      rationale: a.rationale || 'Custom allocation',
+    })),
+  }
+
+  db.prepare(
+    'UPDATE client_goals SET asset_allocation = ?, updated_at = datetime(\'now\') WHERE id = ?'
+  ).run(JSON.stringify(customResult), req.params.goalId)
+
+  res.json({ ...customResult, source: 'custom' })
 })
 
 // Helper: enrich a goal row with computed fields

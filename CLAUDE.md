@@ -16,7 +16,7 @@ MutualFund/
 │   │   ├── funds.js            # Fund search, NAV, returns, SIP backtest, category heatmap
 │   │   ├── clients.js          # Client CRUD, notes, review scheduling, tags
 │   │   ├── portfolio.js        # Holdings CRUD, portfolio analysis (allocation, overlap, underperformers)
-│   │   ├── goals.js            # Goal CRUD, SIP calculator, projections
+│   │   ├── goals.js            # Goal CRUD, SIP calculator, projections, asset allocation endpoints
 │   │   ├── tax.js              # Tax analysis (Budget 2024 rules), harvesting opportunities
 │   │   ├── reports.js          # AI report generation via Claude API
 │   │   ├── backup.js           # Database backup download
@@ -41,6 +41,7 @@ MutualFund/
 │   │   ├── factsheetExtractor.js # Claude API-based PDF extraction of fund data
 │   │   ├── pdfFetcher.js       # PDF download (20MB limit) + AMC website link scraping
 │   │   ├── monteCarloEngine.js # Goal survival simulations (t-distribution, stress scenarios)
+│   │   ├── goalAllocationEngine.js # Goal-to-asset-allocation mapping (horizon, risk, tax optimization)
 │   │   ├── amcRegistry.js      # URLs and metadata for 15+ Indian AMCs
 │   │   ├── assetValuation.js   # Current-value estimation for non-MF assets (FD, PPF, SGB, etc.)
 │   │   └── taxRulesRegistry.js # Tax rules per asset class (Budget 2024), computeAssetTax()
@@ -62,7 +63,7 @@ MutualFund/
 │   │   │   ├── ClientProfile.jsx       # Module 2b: 5-step risk profiling wizard
 │   │   │   ├── PortfolioXray.jsx       # Module 3: Portfolio analysis, allocation, overlap + wealth tab
 │   │   │   ├── WealthView.jsx          # Module 3b: Unified household wealth view (MF + non-MF assets)
-│   │   │   ├── GoalPlanner.jsx         # Module 4: Life goals, SIP planning, projections
+│   │   │   ├── GoalPlanner.jsx         # Module 4: Life goals, SIP planning, projections, asset allocation
 │   │   │   ├── TaxOptimizer.jsx        # Module 5: MF tax + household asset tax (tabbed), harvesting, estimator
 │   │   │   ├── ReportGenerator.jsx     # Module 6: AI-powered branded PDF reports
 │   │   │   ├── Recommendations.jsx     # Module 7: Fund scoring results + SIP allocation
@@ -146,6 +147,7 @@ npx vite build       # Production build to dist/
 - **Background Startup Jobs**: Metrics computation (3s delay, if coverage < 50%) and factsheet pipeline (60s delay, if < 5 AMCs extracted)
 - **SPA Fallback**: Non-API routes serve `frontend/dist/index.html` for client-side routing
 - **Multi-Asset Foundation**: `household_assets` table stores non-MF assets (stocks, FDs, insurance, real estate, PF/PPF, NPS, gold, EPF). MF holdings remain in `client_holdings`/`cas_holdings`. Wealth summary aggregates both layers.
+- **Goal Allocation Engine**: `goalAllocationEngine.js` maps goals to multi-asset allocations (equity MF, debt MF, stocks, FD, gold, PPF, NPS, ELSS) based on time horizon (<3y debt-heavy, 3-7y balanced, >7y equity-heavy), client risk profile, and tax optimization (NPS for retirement, ELSS/PPF for tax saving). Custom allocations stored as JSON in `client_goals.asset_allocation`
 - **MF-Specialist Scope**: Scoring engine, fund metrics, calculations, CAS import, factsheet pipeline, and fund classification remain MF-only. Non-MF assets use simpler valuation (assetValuation.js) and manual entry
 
 ## Database Schema (SQLite)
@@ -158,7 +160,7 @@ npx vite build       # Production build to dist/
 | `clients` | Client records (name, phone, email, PAN, risk_profile, review scheduling, tags) |
 | `client_notes` | Per-client notes (FK → clients) |
 | `client_holdings` | Manual MF holdings (scheme_code, invested_amount, units, purchase_date; FK → clients, funds) |
-| `client_goals` | Investment goals (target_amount, target_year, monthly_sip, expected_return; FK → clients) |
+| `client_goals` | Investment goals (target_amount, target_year, monthly_sip, expected_return, asset_allocation JSON; FK → clients) |
 | `nav_cache` | NAV history cache with 24h TTL (scheme_code + date composite PK) |
 | `client_profiles` | Risk profiling data: income, expenses, questionnaire responses, capacity/tolerance/effective scores, recommended equity/debt/gold % (FK → clients) |
 | `cas_holdings` | CAS-imported holdings with source enum (manual/cas_upload/cas_api), folio, ISIN, units, NAV (FK → clients) |
@@ -180,7 +182,7 @@ All routes prefixed with `/api`. Auth required unless noted.
 | `/funds/*` | Fund Intelligence | AMFI sync, search, NAV history, returns, SIP backtest, categories, heatmap |
 | `/clients/*` | Client CRM | CRUD, notes, review scheduling, tags, stats |
 | `/portfolio/*` | Portfolio X-Ray | Holdings CRUD, analysis (allocation, overlap, underperformers, correlation) |
-| `/goals/*` | Goal Planner | Goal CRUD, SIP calculator, summary |
+| `/goals/*` | Goal Planner | Goal CRUD, SIP calculator, summary, asset allocation (GET/POST per goal) |
 | `/tax/*` | Tax Optimizer | MF tax analysis, harvesting opportunities, standalone estimator, household asset tax analysis, tax rules |
 | `/reports/*` | Report Generator | AI report generation (requires ANTHROPIC_API_KEY) |
 | `/profiling/*` | Risk Profiling | Aggregate stats, get/update client profiles with questionnaire |

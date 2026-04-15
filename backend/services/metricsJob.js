@@ -1,7 +1,7 @@
 import { getDb } from '../db/index.js'
 import { calculateReturns, standardDeviation, maxDrawdown,
          sharpeRatio, sortinoRatio, calmarRatio,
-         fundAgeYears } from './calculations.js'
+         fundAgeYears, RISK_FREE_RATE_PCT } from './calculations.js'
 import { getCategoryRiskLevel } from '../utils/fundClassification.js'
 
 const BATCH_SIZE = 20
@@ -87,8 +87,8 @@ export async function runMetricsJob() {
         const returns = calculateReturns(navData)
         const stdDev = standardDeviation(navData, 3)
         const md = maxDrawdown(navData, 3)
-        const sharpe = sharpeRatio(navData, 6.5, 3)
-        const sortino = sortinoRatio(navData, 6.5, 3)
+        const sharpe = sharpeRatio(navData, RISK_FREE_RATE_PCT, 3)
+        const sortino = sortinoRatio(navData, RISK_FREE_RATE_PCT, 3)
         const calmar = calmarRatio(navData, 3)
         const ageYears = fundAgeYears(navData)
 

@@ -1,3 +1,8 @@
+// Risk-free rate (annualised %) — based on 10-year G-sec yield.
+// Review annually each April after the RBI MPC meeting.
+// Last updated: April 2025 (10Y G-sec ~7.0%)
+export const RISK_FREE_RATE_PCT = 7.0
+
 // CAGR = (endValue / startValue)^(1/years) - 1
 export function cagr(startNav, endNav, years) {
   if (startNav <= 0 || years <= 0) return null
@@ -195,7 +200,7 @@ export function maxDrawdown(navData, periodYears = 3) {
 }
 
 // Sharpe ratio
-export function sharpeRatio(navData, riskFreeRate = 6, periodYears = 3) {
+export function sharpeRatio(navData, riskFreeRate = RISK_FREE_RATE_PCT, periodYears = 3) {
   const returns = calculateReturns(navData)
   const key = periodYears >= 5 ? '5Y' : periodYears >= 3 ? '3Y' : '1Y'
   const annualReturn = returns[key]?.return
@@ -315,7 +320,7 @@ export function sipBacktest(navData, monthlySip, startDate, endDate = null) {
 }
 
 // Sortino ratio — like Sharpe but penalises only downside volatility
-export function sortinoRatio(navData, riskFreeRate = 6, periodYears = 3) {
+export function sortinoRatio(navData, riskFreeRate = RISK_FREE_RATE_PCT, periodYears = 3) {
   if (!navData || navData.length === 0) return null
 
   const latest = navData[navData.length - 1]
@@ -368,7 +373,7 @@ export function calmarRatio(navData, periodYears = 3) {
 }
 
 // Jensen's alpha — excess return above CAPM prediction
-export function jensensAlpha(navData, benchmarkNavData, riskFreeRate = 6, periodYears = 3) {
+export function jensensAlpha(navData, benchmarkNavData, riskFreeRate = RISK_FREE_RATE_PCT, periodYears = 3) {
   if (!navData || !benchmarkNavData || navData.length === 0 || benchmarkNavData.length === 0) return null
 
   const latest = navData[navData.length - 1]

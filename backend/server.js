@@ -1,8 +1,11 @@
 import express from 'express'
 import session from 'express-session'
+import SqliteStoreFactory from 'better-sqlite3-session-store'
+import rateLimit from 'express-rate-limit'
 import cors from 'cors'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { getDb } from './db/index.js'
 import fundsRouter from './routes/funds.js'
 import clientsRouter from './routes/clients.js'
 import portfolioRouter from './routes/portfolio.js'
@@ -23,11 +26,54 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const app = express()
 const PORT = process.env.PORT || 3001
 
-app.use(cors({ origin: true, credentials: true }))
+// ---- 1G: Enforce credential env vars ----
+// In production, refuse to start with insecure defaults
+if (process.env.NODE_ENV === 'production') {
+  if (!process.env.AUTH_PASSWORD) {
+    console.error('[FATAL] AUTH_PASSWORD env var is not set in production. Refusing to start.')
+    process.exit(1)
+  }
+  if (!process.env.SESSION_SECRET) {
+    console.error('[FATAL] SESSION_SECRET env var is not set in production. Refusing to start.')
+    process.exit(1)
+  }
+} else {
+  if (!process.env.AUTH_PASSWORD) {
+    console.warn('[WARN] AUTH_PASSWORD not set — using insecure default "tejova". Do not use in production.')
+  }
+  if (!process.env.SESSION_SECRET) {
+    console.warn('[WARN] SESSION_SECRET not set — using insecure default. Do not use in production.')
+  }
+}
+
+// ---- 1A: CORS — explicit allowlist only ----
+const ALLOWED_ORIGINS = [
+  'http://localhost:5173',
+  'http://localhost:4173',
+  process.env.FRONTEND_URL,
+].filter(Boolean)
+
+app.use(cors({
+  origin: (origin, cb) => {
+    // Allow same-origin requests (no Origin header) and explicitly listed origins
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true)
+    cb(new Error('CORS: origin not allowed'))
+  },
+  credentials: true,
+}))
+
 app.use(express.json())
 
-// Session middleware
+// Trust Railway's proxy for secure cookies
+if (process.env.RAILWAY_ENVIRONMENT) {
+  app.set('trust proxy', 1)
+}
+
+// ---- 1C: Persist sessions to SQLite ----
+const SqliteStore = SqliteStoreFactory(session)
+
 app.use(session({
+  store: new SqliteStore({ client: getDb() }),
   secret: process.env.SESSION_SECRET || 'tejova-dev-secret-change-in-prod',
   resave: false,
   saveUninitialized: false,
@@ -39,14 +85,18 @@ app.use(session({
   },
 }))
 
-// Trust Railway's proxy for secure cookies
-if (process.env.RAILWAY_ENVIRONMENT) {
-  app.set('trust proxy', 1)
-}
+// ---- 1D: Rate limit the login endpoint ----
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,                   // 10 attempts per window per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many login attempts — try again in 15 minutes.' },
+})
 
 // ---- Auth routes (unprotected) ----
 
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', loginLimiter, (req, res) => {
   const { password } = req.body
   const authPassword = process.env.AUTH_PASSWORD || 'tejova'
 
@@ -72,17 +122,14 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
-// Dev log (unprotected — developer diagnostic tool)
-app.use('/api', devlogRouter)
-
-// ---- Auth middleware for all other API routes ----
+// ---- Auth middleware for all API routes ----
 
 app.use('/api', (req, res, next) => {
   if (req.session.authenticated) return next()
   res.status(401).json({ message: 'Authentication required' })
 })
 
-// API routes
+// API routes (all protected — including devlog: 1B fix)
 app.use('/api', fundsRouter)
 app.use('/api', clientsRouter)
 app.use('/api', portfolioRouter)
@@ -97,6 +144,7 @@ app.use('/api', factsheetsRouter)
 app.use('/api', assetsRouter)
 app.use('/api', wealthRouter)
 app.use('/api', householdTaxRouter)
+app.use('/api', devlogRouter)
 
 // ---- Static file serving (production) ----
 
@@ -113,7 +161,6 @@ app.listen(PORT, () => {
 
   setTimeout(async () => {
     try {
-      const { getDb } = await import('./db/index.js')
       const db = getDb()
 
       // Check current metrics coverage
@@ -159,7 +206,6 @@ app.listen(PORT, () => {
         console.log('[FactsheetPipeline] No ANTHROPIC_API_KEY — skipping startup pipeline.')
         return
       }
-      const { getDb } = await import('./db/index.js')
       const db = getDb()
       const currentMonth = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
         .toISOString().slice(0, 7) // Previous month (factsheets lag)

@@ -17,10 +17,43 @@ const INCOME_TYPES = ['Salaried', 'Business', 'Freelance', 'Retired', 'Other']
 const TAX_SLABS = ['0%', '5%', '10%', '15%', '20%', '30%']
 const GOAL_OPTIONS = ['Wealth Creation', 'Retirement', 'Child Education', 'House Purchase', 'Emergency Fund', 'Car Purchase', 'Vacation', 'Wedding']
 
+// All sliders use a 1-5 Likert scale where higher = greater risk tolerance.
+// Keep in sync with QUESTION_KEYS in backend/services/profileAnalyzer.js
 const SLIDER_LABELS = {
-  market_fall_reaction: { left: 'Panic sell', right: 'Buy more', label: 'If your portfolio drops 20% in a month, you would...' },
-  loss_tolerance: { left: 'No tolerance', right: 'Very high', label: 'How much temporary loss can you stomach?' },
-  investment_experience: { left: 'First time', right: '10+ years expert', label: 'Your investment experience level' },
+  market_fall_reaction:        { left: 'Panic sell',     right: 'Buy more',       label: 'If your portfolio drops 20% in a month, you would...' },
+  loss_tolerance:              { left: 'No tolerance',   right: 'Very high',      label: 'How much temporary loss can you stomach?' },
+  investment_experience:       { left: 'First time',     right: 'Expert',         label: 'Your investment experience level' },
+  goal_clarity:                { left: 'Vague',          right: 'Clearly defined',label: 'How clearly defined are your financial goals?' },
+  time_horizon_flexibility:    { left: 'Rigid / fixed',  right: 'Very flexible',  label: 'Can you extend your investment horizon if markets are down?' },
+  portfolio_gain_reaction:     { left: 'Lock in gains',  right: 'Stay invested',  label: 'After a 30% portfolio gain, your first instinct would be to...' },
+  financial_literacy:          { left: 'Basic only',     right: 'Expert-level',   label: 'How would you rate your investment knowledge?' },
+  income_stability_confidence: { left: 'Very uncertain', right: 'Very confident', label: 'How confident are you in your income stability over the next 5 years?' },
+}
+
+const SLIDER_SCALE_MIN = 1
+const SLIDER_SCALE_MAX = 5
+const SLIDER_DEFAULT = 3
+
+// Coerce a stored value onto the 1-5 scale.
+// Legacy profiles used 0-10 sliders; map those to the new range.
+function coerceToScale(v) {
+  const n = Number(v)
+  if (!isFinite(n)) return SLIDER_DEFAULT
+  // Legacy 0-10 values: map via round(n/2) clamped to 1-5
+  const mapped = n > SLIDER_SCALE_MAX ? Math.round(n / 2) : Math.round(n)
+  return Math.max(SLIDER_SCALE_MIN, Math.min(SLIDER_SCALE_MAX, mapped))
+}
+
+function mergeQuestionnaire(stored, defaults) {
+  const out = { ...defaults }
+  if (stored && typeof stored === 'object') {
+    for (const key of Object.keys(defaults)) {
+      if (stored[key] !== undefined && stored[key] !== null && stored[key] !== '') {
+        out[key] = coerceToScale(stored[key])
+      }
+    }
+  }
+  return out
 }
 
 export default function ClientProfile() {
@@ -46,7 +79,9 @@ export default function ClientProfile() {
     has_home_loan: false,
     has_emergency_fund: false,
     emergency_fund_months: '',
-    questionnaire_responses: { market_fall_reaction: 5, loss_tolerance: 5, investment_experience: 3 },
+    questionnaire_responses: Object.fromEntries(
+      Object.keys(SLIDER_LABELS).map(k => [k, SLIDER_DEFAULT])
+    ),
     primary_goal: '',
     investment_horizon: 10,
     elss_invested_this_year: '',
@@ -82,7 +117,7 @@ export default function ClientProfile() {
             has_home_loan: !!p.has_home_loan,
             has_emergency_fund: !!p.has_emergency_fund,
             emergency_fund_months: p.emergency_fund_months || '',
-            questionnaire_responses: p.questionnaire_responses || prev.questionnaire_responses,
+            questionnaire_responses: mergeQuestionnaire(p.questionnaire_responses, prev.questionnaire_responses),
             primary_goal: p.primary_goal || '',
             investment_horizon: Number(p.investment_horizon) || 10,
             elss_invested_this_year: p.elss_invested_this_year || '',
@@ -290,18 +325,20 @@ export default function ClientProfile() {
         )}
 
         {step === 2 && (
-          <div className="space-y-6">
-            <h2 className="text-lg font-semibold text-slate-100 mb-4">Investment Behavior</h2>
+          <div className="space-y-5">
+            <h2 className="text-lg font-semibold text-slate-100 mb-1">Investment Behavior</h2>
+            <p className="text-xs text-slate-500 mb-4">Rate each statement on a 1 (low) to 5 (high) scale. All 8 answers are required to unlock fund recommendations.</p>
             {Object.entries(SLIDER_LABELS).map(([key, cfg]) => (
               <div key={key}>
                 <label className="block text-sm font-medium text-slate-300 mb-2">{cfg.label}</label>
                 <div className="flex items-center gap-3">
-                  <span className="text-xs text-slate-500 w-20 text-right">{cfg.left}</span>
-                  <input type="range" min={0} max={10} value={form.questionnaire_responses[key]}
+                  <span className="text-xs text-slate-500 w-24 text-right shrink-0">{cfg.left}</span>
+                  <input type="range" min={SLIDER_SCALE_MIN} max={SLIDER_SCALE_MAX} step={1}
+                    value={form.questionnaire_responses[key] ?? SLIDER_DEFAULT}
                     onChange={e => setQ(key, Number(e.target.value))}
                     className="flex-1 accent-amber-500" />
-                  <span className="text-xs text-slate-500 w-20">{cfg.right}</span>
-                  <span className="text-sm font-bold text-slate-100 w-8 text-center">{form.questionnaire_responses[key]}</span>
+                  <span className="text-xs text-slate-500 w-24 shrink-0">{cfg.right}</span>
+                  <span className="text-sm font-bold text-slate-100 w-8 text-center tabular-nums">{form.questionnaire_responses[key] ?? SLIDER_DEFAULT}</span>
                 </div>
               </div>
             ))}

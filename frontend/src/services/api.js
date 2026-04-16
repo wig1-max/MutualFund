@@ -281,3 +281,25 @@ export function getWealthSummary(clientId) {
 export function getTotalWealth() {
   return request('/wealth/total')
 }
+
+// ---- Client Loans ----
+
+export function getLoanTypes() {
+  return request('/loans/types')
+}
+
+export function getClientLoans(clientId) {
+  return request(`/loans/${clientId}`)
+}
+
+export function addClientLoan(clientId, data) {
+  return request(`/loans/${clientId}`, { method: 'POST', body: JSON.stringify(data) })
+}
+
+export function updateClientLoan(clientId, loanId, data) {
+  return request(`/loans/${clientId}/${loanId}`, { method: 'PUT', body: JSON.stringify(data) })
+}
+
+export function deleteClientLoan(clientId, loanId) {
+  return request(`/loans/${clientId}/${loanId}`, { method: 'DELETE' })
+}

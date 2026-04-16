@@ -25,6 +25,16 @@ const quickActions = [
   { label: 'Client CRM', icon: Users, to: '/crm' },
 ]
 
+// Time-of-day greeting based on local hour.
+// Morning: 04:00–11:59, Afternoon: 12:00–16:59, Evening: 17:00–21:59, Night: 22:00–03:59
+function getTimeOfDayGreeting(date = new Date()) {
+  const h = date.getHours()
+  if (h >= 4  && h < 12) return 'Good morning'
+  if (h >= 12 && h < 17) return 'Good afternoon'
+  if (h >= 17 && h < 22) return 'Good evening'
+  return 'Hello'
+}
+
 export default function Dashboard() {
   const navigate = useNavigate()
   const [niftyValue, setNiftyValue] = useState('—')
@@ -33,6 +43,18 @@ export default function Dashboard() {
   const [totalAum, setTotalAum] = useState(null)
   const [profilingSummary, setProfilingSummary] = useState(null)
   const [totalWealth, setTotalWealth] = useState(null)
+  const [greeting, setGreeting] = useState(() => getTimeOfDayGreeting())
+
+  // Refresh greeting when tab regains focus (handles overnight sessions).
+  useEffect(() => {
+    const refresh = () => setGreeting(getTimeOfDayGreeting())
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', refresh)
+    return () => {
+      window.removeEventListener('focus', refresh)
+      document.removeEventListener('visibilitychange', refresh)
+    }
+  }, [])
 
   useEffect(() => {
     getClientStats().then(setStats).catch(() => {})
@@ -61,7 +83,7 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-100">Good morning, Aryan</h1>
+          <h1 className="text-2xl font-bold text-slate-100">{greeting}, Aryan</h1>
           <p className="text-sm text-slate-500 mt-1">
             {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </p>

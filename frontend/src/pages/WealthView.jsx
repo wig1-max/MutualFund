@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import {
-  Wallet, Plus, Pencil, Trash2, Loader2, X,
+  Wallet, Plus, Pencil, Trash2, Loader2,
   PieChart as PieChartIcon, IndianRupee, Landmark, TrendingUp,
+  ShieldAlert, ShieldCheck, Banknote,
 } from 'lucide-react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 import { useToast } from '../components/Toast'
-import { Card, Button, Badge } from '../components/UI'
+import { Card, Button, Badge, Modal } from '../components/UI'
 import * as api from '../services/api'
 import { formatCurrency } from '../lib/utils'
 
@@ -21,26 +22,38 @@ export default function WealthView() {
   const [loading, setLoading] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingAsset, setEditingAsset] = useState(null)
+  // Loan state
+  const [loans, setLoans] = useState([])
+  const [loanSummary, setLoanSummary] = useState(null)
+  const [loanTypes, setLoanTypes] = useState([])
+  const [showLoanModal, setShowLoanModal] = useState(false)
+  const [editingLoan, setEditingLoan] = useState(null)
 
   useEffect(() => {
     api.getClients().then(setClients).catch(err => showToast(err.message, 'error'))
     api.getAssetTypes().then(data => setAssetTypes(data.types || [])).catch(() => {})
+    api.getLoanTypes().then(data => setLoanTypes(data.types || [])).catch(() => {})
   }, [])
 
   useEffect(() => {
     if (!selectedClientId) {
       setAssets([])
       setWealthSummary(null)
+      setLoans([])
+      setLoanSummary(null)
       return
     }
     setLoading(true)
     Promise.all([
       api.getClientAssets(selectedClientId),
       api.getWealthSummary(selectedClientId),
+      api.getClientLoans(selectedClientId),
     ])
-      .then(([assetsData, wealthData]) => {
+      .then(([assetsData, wealthData, loanData]) => {
         setAssets(assetsData.assets || [])
         setWealthSummary(wealthData)
+        setLoans(loanData.loans || [])
+        setLoanSummary(loanData.summary || null)
       })
       .catch(err => showToast(err.message, 'error'))
       .finally(() => setLoading(false))
@@ -49,12 +62,26 @@ export default function WealthView() {
   const refreshData = async () => {
     if (!selectedClientId) return
     try {
-      const [assetsData, wealthData] = await Promise.all([
+      const [assetsData, wealthData, loanData] = await Promise.all([
         api.getClientAssets(selectedClientId),
         api.getWealthSummary(selectedClientId),
+        api.getClientLoans(selectedClientId),
       ])
       setAssets(assetsData.assets || [])
       setWealthSummary(wealthData)
+      setLoans(loanData.loans || [])
+      setLoanSummary(loanData.summary || null)
+    } catch (err) {
+      showToast(err.message, 'error')
+    }
+  }
+
+  const handleDeleteLoan = async (loanId) => {
+    if (!window.confirm('Delete this loan?')) return
+    try {
+      await api.deleteClientLoan(selectedClientId, loanId)
+      showToast('Loan deleted', 'success')
+      refreshData()
     } catch (err) {
       showToast(err.message, 'error')
     }
@@ -141,6 +168,11 @@ export default function WealthView() {
               borderColor="border-violet-500/40"
             />
           </div>
+
+          {/* Insurance Coverage Banner */}
+          {wealthSummary?.insurance && (
+            <InsuranceBanner insurance={wealthSummary.insurance} />
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             {/* Allocation Pie Chart */}
@@ -263,6 +295,89 @@ export default function WealthView() {
               </div>
             )}
           </Card>
+
+          {/* Loans / Liabilities Section */}
+          <Card className="shadow-sm overflow-hidden mt-6">
+            <div className="p-4 border-b border-white/[0.06] flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-100 uppercase tracking-wide flex items-center gap-2">
+                  <Banknote size={14} /> Loans & EMIs
+                </h3>
+                {loanSummary && loanSummary.count > 0 && (
+                  <p className="text-xs text-slate-500 mt-1">
+                    {loanSummary.count} loan{loanSummary.count !== 1 ? 's' : ''}
+                    {' · '}
+                    Total EMI: <span className="text-slate-200 font-medium">{formatCurrency(loanSummary.total_emi)}/mo</span>
+                    {' · '}
+                    Outstanding: <span className="text-slate-200 font-medium">{formatCurrency(loanSummary.total_outstanding)}</span>
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => { setEditingLoan(null); setShowLoanModal(true) }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 text-ink-900 rounded-lg text-xs font-medium hover:bg-amber-400 transition-colors"
+              >
+                <Plus size={14} /> Add Loan
+              </button>
+            </div>
+            {loans.length === 0 ? (
+              <div className="text-center py-12">
+                <Banknote size={36} className="mx-auto text-slate-600 mb-2" />
+                <p className="text-slate-400 text-sm">No loans recorded.</p>
+                <p className="text-slate-600 text-xs mt-1">EMIs tracked here feed into the client's risk capacity.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-white/[0.02] border-b border-white/[0.06]">
+                      <th className="text-left p-4 text-slate-400 font-medium">Type</th>
+                      <th className="text-left p-4 text-slate-400 font-medium">Lender</th>
+                      <th className="text-right p-4 text-slate-400 font-medium">EMI / Mo</th>
+                      <th className="text-right p-4 text-slate-400 font-medium">Outstanding</th>
+                      <th className="text-right p-4 text-slate-400 font-medium">Rate</th>
+                      <th className="text-right p-4 text-slate-400 font-medium">Remaining</th>
+                      <th className="text-right p-4 text-slate-400 font-medium w-20"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loans.map(l => (
+                      <tr key={l.id} className="border-b border-white/[0.04] hover:bg-white/[0.04]">
+                        <td className="p-4">
+                          <Badge variant="gold">
+                            {(loanTypes.find(t => t.value === l.loan_type)?.label) || l.loan_type}
+                          </Badge>
+                        </td>
+                        <td className="p-4 text-slate-200">{l.lender || '—'}</td>
+                        <td className="p-4 text-right font-medium text-red-400">{formatCurrency(l.emi_amount || 0)}</td>
+                        <td className="p-4 text-right text-slate-100">{l.outstanding_amount ? formatCurrency(l.outstanding_amount) : '—'}</td>
+                        <td className="p-4 text-right text-slate-400">{l.interest_rate ? `${l.interest_rate}%` : '—'}</td>
+                        <td className="p-4 text-right text-slate-500 text-xs">
+                          {l.remaining_months ? `${l.remaining_months} mo` : l.end_date || '—'}
+                        </td>
+                        <td className="p-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => { setEditingLoan(l); setShowLoanModal(true) }}
+                              className="text-slate-600 hover:text-amber-400 transition-colors"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteLoan(l.id)}
+                              className="text-slate-600 hover:text-red-400 transition-colors"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
         </>
       )}
 
@@ -281,15 +396,81 @@ export default function WealthView() {
       )}
 
       {/* Add / Edit Asset Modal */}
-      {showAddModal && (
-        <AssetModal
-          clientId={selectedClientId}
-          assetTypes={assetTypes}
-          editingAsset={editingAsset}
-          onClose={() => { setShowAddModal(false); setEditingAsset(null) }}
-          onSaved={() => { setShowAddModal(false); setEditingAsset(null); refreshData() }}
-        />
-      )}
+      <AssetModal
+        open={showAddModal}
+        clientId={selectedClientId}
+        assetTypes={assetTypes}
+        editingAsset={editingAsset}
+        onClose={() => { setShowAddModal(false); setEditingAsset(null) }}
+        onSaved={() => { setShowAddModal(false); setEditingAsset(null); refreshData() }}
+      />
+
+      {/* Add / Edit Loan Modal */}
+      <LoanModal
+        open={showLoanModal}
+        clientId={selectedClientId}
+        loanTypes={loanTypes}
+        editingLoan={editingLoan}
+        onClose={() => { setShowLoanModal(false); setEditingLoan(null) }}
+        onSaved={() => { setShowLoanModal(false); setEditingLoan(null); refreshData() }}
+      />
+    </div>
+  )
+}
+
+// ---------- Insurance Coverage Banner ----------
+function InsuranceBanner({ insurance }) {
+  const {
+    life_cover_status, total_life_cover, target_life_cover, life_cover_gap,
+    life_cover_ratio, health_cover_status, total_health_cover,
+    policy_count, target_life_multiple,
+  } = insurance
+
+  // Banner style + copy keyed off status
+  const STATUS_STYLES = {
+    unknown:  { tone: 'slate',   icon: ShieldAlert, title: 'Insurance coverage — income data missing' },
+    missing:  { tone: 'red',     icon: ShieldAlert, title: 'No life insurance on file' },
+    under:    { tone: 'red',     icon: ShieldAlert, title: 'Life cover significantly below target' },
+    low:      { tone: 'amber',   icon: ShieldAlert, title: 'Life cover below recommended 10x income' },
+    adequate: { tone: 'emerald', icon: ShieldCheck, title: 'Life cover meets recommended 10x income' },
+  }
+  const config = STATUS_STYLES[life_cover_status] || STATUS_STYLES.unknown
+  const Icon = config.icon
+
+  const toneClasses = {
+    red:     'bg-red-500/10 border-red-500/30 text-red-300',
+    amber:   'bg-amber-500/10 border-amber-500/30 text-amber-300',
+    emerald: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300',
+    slate:   'bg-slate-500/10 border-slate-500/30 text-slate-300',
+  }[config.tone]
+
+  const description =
+    life_cover_status === 'unknown'
+      ? 'Add monthly income in the client profile to evaluate life cover adequacy.'
+      : life_cover_status === 'missing'
+        ? `Recommended life cover is ${formatCurrency(target_life_cover)} (${target_life_multiple}x annual income). No life policies recorded.`
+        : life_cover_status === 'adequate'
+          ? `${formatCurrency(total_life_cover)} cover is ${life_cover_ratio}x annual income — at or above the ${target_life_multiple}x target.`
+          : `Current cover ${formatCurrency(total_life_cover)} (${life_cover_ratio}x income) vs target ${formatCurrency(target_life_cover)}. Gap: ${formatCurrency(life_cover_gap)}.`
+
+  const healthNote =
+    health_cover_status === 'covered'
+      ? `Health cover on file: ${formatCurrency(total_health_cover)}.`
+      : 'No health insurance policy on file.'
+
+  return (
+    <div className={`border rounded-xl p-4 mb-6 ${toneClasses}`}>
+      <div className="flex items-start gap-3">
+        <Icon size={20} className="mt-0.5 flex-shrink-0" />
+        <div className="flex-1">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <h3 className="text-sm font-semibold">{config.title}</h3>
+            <span className="text-[11px] opacity-70">{policy_count} polic{policy_count === 1 ? 'y' : 'ies'} on file</span>
+          </div>
+          <p className="text-xs mt-1 opacity-90">{description}</p>
+          <p className="text-xs mt-1 opacity-80">{healthNote}</p>
+        </div>
+      </div>
     </div>
   )
 }
@@ -317,24 +498,41 @@ function getTypeLabel(assetTypes, typeKey) {
 }
 
 // ---------- Add / Edit Asset Modal ----------
-function AssetModal({ clientId, assetTypes, editingAsset, onClose, onSaved }) {
+function AssetModal({ open, clientId, assetTypes, editingAsset, onClose, onSaved }) {
   const { showToast } = useToast()
   const isEditing = !!editingAsset
   const [saving, setSaving] = useState(false)
 
-  const [form, setForm] = useState({
-    asset_type: editingAsset?.asset_type || '',
-    asset_subtype: editingAsset?.asset_subtype || '',
-    name: editingAsset?.name || '',
-    identifier: editingAsset?.identifier || '',
-    invested_amount: editingAsset?.invested_amount || '',
-    current_value: editingAsset?.current_value || '',
-    units: editingAsset?.units || '',
-    purchase_date: editingAsset?.purchase_date || '',
-    maturity_date: editingAsset?.maturity_date || '',
-    interest_rate: editingAsset?.interest_rate || '',
-    notes: editingAsset?.notes || '',
-  })
+  const buildInitialForm = (asset) => {
+    const meta = asset?.metadata && typeof asset.metadata === 'object' ? asset.metadata : {}
+    return {
+      asset_type: asset?.asset_type || '',
+      asset_subtype: asset?.asset_subtype || '',
+      name: asset?.name || '',
+      identifier: asset?.identifier || '',
+      invested_amount: asset?.invested_amount || '',
+      current_value: asset?.current_value || '',
+      units: asset?.units || '',
+      purchase_date: asset?.purchase_date || '',
+      maturity_date: asset?.maturity_date || '',
+      interest_rate: asset?.interest_rate || '',
+      notes: asset?.notes || '',
+      // Insurance-specific metadata fields
+      sum_assured: meta.sum_assured ?? '',
+      annual_premium: meta.annual_premium ?? '',
+      premium_frequency: meta.premium_frequency || 'Annual',
+      insurer: meta.insurer || '',
+      policy_number: meta.policy_number || '',
+    }
+  }
+
+  const [form, setForm] = useState(buildInitialForm(editingAsset))
+
+  // Reset form when a new asset is selected for editing
+  useEffect(() => {
+    if (!open) return
+    setForm(buildInitialForm(editingAsset))
+  }, [open, editingAsset])
 
   const selectedType = assetTypes.find(t => t.value === form.asset_type)
   const subtypes = selectedType?.subtypes || []
@@ -346,6 +544,18 @@ function AssetModal({ clientId, assetTypes, editingAsset, onClose, onSaved }) {
     if (!form.asset_type || !form.name) return
     setSaving(true)
     try {
+      // Build metadata object for insurance-specific fields
+      let metadata = null
+      if (form.asset_type === 'insurance') {
+        metadata = {
+          sum_assured:       form.sum_assured ? parseFloat(form.sum_assured) : null,
+          annual_premium:    form.annual_premium ? parseFloat(form.annual_premium) : null,
+          premium_frequency: form.premium_frequency || null,
+          insurer:           form.insurer || null,
+          policy_number:     form.policy_number || null,
+        }
+      }
+
       const payload = {
         ...form,
         invested_amount: form.invested_amount ? parseFloat(form.invested_amount) : 0,
@@ -353,6 +563,7 @@ function AssetModal({ clientId, assetTypes, editingAsset, onClose, onSaved }) {
         units: form.units ? parseFloat(form.units) : null,
         interest_rate: form.interest_rate ? parseFloat(form.interest_rate) : null,
         asset_subtype: form.asset_subtype || null,
+        ...(metadata ? { metadata } : {}),
       }
       if (isEditing) {
         await api.updateClientAsset(clientId, editingAsset.id, payload)
@@ -370,13 +581,8 @@ function AssetModal({ clientId, assetTypes, editingAsset, onClose, onSaved }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-surface-800 rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.07]">
-          <h2 className="text-lg font-bold text-slate-100">{isEditing ? 'Edit Asset' : 'Add Asset'}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-300"><X size={18} /></button>
-        </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+    <Modal open={open} onClose={onClose} title={isEditing ? 'Edit Asset' : 'Add Asset'} size="lg">
+      <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-xs text-slate-400 font-medium block mb-1.5">Asset Type *</label>
@@ -419,6 +625,69 @@ function AssetModal({ clientId, assetTypes, editingAsset, onClose, onSaved }) {
               className="w-full px-3 py-2 bg-surface-700 border border-white/[0.07] rounded-lg text-sm text-slate-100 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20"
             />
           </div>
+
+          {/* Insurance-specific fields */}
+          {form.asset_type === 'insurance' && (
+            <div className="p-4 rounded-lg bg-white/[0.02] border border-white/[0.06] space-y-4">
+              <p className="text-[11px] text-slate-500 uppercase tracking-wider font-medium">Policy Details</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs text-slate-400 font-medium block mb-1.5">Sum Assured ({'\u20B9'})</label>
+                  <input
+                    type="number"
+                    value={form.sum_assured}
+                    onChange={(e) => update('sum_assured', e.target.value)}
+                    placeholder="e.g. 10000000"
+                    className="w-full px-3 py-2 bg-surface-700 border border-white/[0.07] rounded-lg text-sm text-slate-100 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 font-medium block mb-1.5">Insurer</label>
+                  <input
+                    value={form.insurer}
+                    onChange={(e) => update('insurer', e.target.value)}
+                    placeholder="e.g. HDFC Life, LIC"
+                    className="w-full px-3 py-2 bg-surface-700 border border-white/[0.07] rounded-lg text-sm text-slate-100 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="text-xs text-slate-400 font-medium block mb-1.5">Premium ({'\u20B9'})</label>
+                  <input
+                    type="number"
+                    value={form.annual_premium}
+                    onChange={(e) => update('annual_premium', e.target.value)}
+                    placeholder="per period"
+                    className="w-full px-3 py-2 bg-surface-700 border border-white/[0.07] rounded-lg text-sm text-slate-100 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 font-medium block mb-1.5">Frequency</label>
+                  <select
+                    value={form.premium_frequency}
+                    onChange={(e) => update('premium_frequency', e.target.value)}
+                    className="w-full px-3 py-2 bg-surface-700 border border-white/[0.07] rounded-lg text-sm text-slate-100 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20"
+                  >
+                    <option value="Monthly">Monthly</option>
+                    <option value="Quarterly">Quarterly</option>
+                    <option value="Half-yearly">Half-yearly</option>
+                    <option value="Annual">Annual</option>
+                    <option value="One-time">One-time</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 font-medium block mb-1.5">Policy Number</label>
+                  <input
+                    value={form.policy_number}
+                    onChange={(e) => update('policy_number', e.target.value)}
+                    placeholder="Optional"
+                    className="w-full px-3 py-2 bg-surface-700 border border-white/[0.07] rounded-lg text-sm text-slate-100 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="text-xs text-slate-400 font-medium block mb-1.5">Identifier (Folio/Account No.)</label>
@@ -519,8 +788,216 @@ function AssetModal({ clientId, assetTypes, editingAsset, onClose, onSaved }) {
               {isEditing ? 'Update Asset' : 'Add Asset'}
             </button>
           </div>
-        </form>
-      </div>
-    </div>
+      </form>
+    </Modal>
+  )
+}
+
+// ---------- Add / Edit Loan Modal ----------
+function LoanModal({ open, clientId, loanTypes, editingLoan, onClose, onSaved }) {
+  const { showToast } = useToast()
+  const isEditing = !!editingLoan
+  const [saving, setSaving] = useState(false)
+
+  const buildInitial = (l) => ({
+    loan_type:          l?.loan_type          || 'home',
+    lender:             l?.lender             || '',
+    principal_amount:   l?.principal_amount   ?? '',
+    outstanding_amount: l?.outstanding_amount ?? '',
+    emi_amount:         l?.emi_amount         ?? '',
+    interest_rate:      l?.interest_rate      ?? '',
+    tenure_months:      l?.tenure_months      ?? '',
+    remaining_months:   l?.remaining_months   ?? '',
+    start_date:         l?.start_date         || '',
+    end_date:           l?.end_date           || '',
+    notes:              l?.notes              || '',
+  })
+
+  const [form, setForm] = useState(buildInitial(editingLoan))
+
+  useEffect(() => {
+    if (!open) return
+    setForm(buildInitial(editingLoan))
+  }, [open, editingLoan])
+
+  const update = (field, value) => setForm(prev => ({ ...prev, [field]: value }))
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!form.loan_type || form.emi_amount === '' || isNaN(Number(form.emi_amount))) return
+    setSaving(true)
+    try {
+      const payload = {
+        loan_type:          form.loan_type,
+        lender:             form.lender || null,
+        principal_amount:   form.principal_amount   !== '' ? parseFloat(form.principal_amount)   : null,
+        outstanding_amount: form.outstanding_amount !== '' ? parseFloat(form.outstanding_amount) : null,
+        emi_amount:         parseFloat(form.emi_amount),
+        interest_rate:      form.interest_rate      !== '' ? parseFloat(form.interest_rate)      : null,
+        tenure_months:      form.tenure_months      !== '' ? parseInt(form.tenure_months, 10)    : null,
+        remaining_months:   form.remaining_months   !== '' ? parseInt(form.remaining_months, 10) : null,
+        start_date:         form.start_date || null,
+        end_date:           form.end_date || null,
+        notes:              form.notes || null,
+      }
+      if (isEditing) {
+        await api.updateClientLoan(clientId, editingLoan.id, payload)
+        showToast('Loan updated', 'success')
+      } else {
+        await api.addClientLoan(clientId, payload)
+        showToast('Loan added', 'success')
+      }
+      onSaved()
+    } catch (err) {
+      showToast(err.message, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const inputClass = 'w-full px-3 py-2 bg-surface-700 border border-white/[0.07] rounded-lg text-sm text-slate-100 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20'
+  const labelClass = 'text-xs text-slate-400 font-medium block mb-1.5'
+
+  return (
+    <Modal open={open} onClose={onClose} title={isEditing ? 'Edit Loan' : 'Add Loan'} size="lg">
+      <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass}>Loan Type *</label>
+            <select
+              value={form.loan_type}
+              onChange={(e) => update('loan_type', e.target.value)}
+              required
+              className={inputClass}
+            >
+              {loanTypes.map(t => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Lender</label>
+            <input
+              value={form.lender}
+              onChange={(e) => update('lender', e.target.value)}
+              placeholder="e.g. HDFC Bank"
+              className={inputClass}
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label className={labelClass}>Monthly EMI ({'\u20B9'}) *</label>
+            <input
+              type="number"
+              step="1"
+              value={form.emi_amount}
+              onChange={(e) => update('emi_amount', e.target.value)}
+              placeholder="e.g. 25000"
+              required
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Principal ({'\u20B9'})</label>
+            <input
+              type="number"
+              value={form.principal_amount}
+              onChange={(e) => update('principal_amount', e.target.value)}
+              placeholder="Original amount"
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Outstanding ({'\u20B9'})</label>
+            <input
+              type="number"
+              value={form.outstanding_amount}
+              onChange={(e) => update('outstanding_amount', e.target.value)}
+              placeholder="Remaining"
+              className={inputClass}
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label className={labelClass}>Interest Rate (%)</label>
+            <input
+              type="number"
+              step="0.01"
+              value={form.interest_rate}
+              onChange={(e) => update('interest_rate', e.target.value)}
+              placeholder="e.g. 8.5"
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Tenure (mo)</label>
+            <input
+              type="number"
+              value={form.tenure_months}
+              onChange={(e) => update('tenure_months', e.target.value)}
+              placeholder="e.g. 240"
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Remaining (mo)</label>
+            <input
+              type="number"
+              value={form.remaining_months}
+              onChange={(e) => update('remaining_months', e.target.value)}
+              placeholder="e.g. 180"
+              className={inputClass}
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass}>Start Date</label>
+            <input
+              type="date"
+              value={form.start_date}
+              onChange={(e) => update('start_date', e.target.value)}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>End Date</label>
+            <input
+              type="date"
+              value={form.end_date}
+              onChange={(e) => update('end_date', e.target.value)}
+              className={inputClass}
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className={labelClass}>Notes</label>
+          <input
+            value={form.notes}
+            onChange={(e) => update('notes', e.target.value)}
+            placeholder="Optional"
+            className={inputClass}
+          />
+        </div>
+
+        <div className="flex justify-end gap-3 pt-2">
+          <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-slate-500 hover:text-slate-300">Cancel</button>
+          <button
+            type="submit"
+            disabled={saving || !form.loan_type || form.emi_amount === ''}
+            className="flex items-center gap-2 px-5 py-2 bg-amber-500 text-ink-900 rounded-lg text-sm font-medium hover:bg-amber-400 disabled:opacity-50 transition-colors"
+          >
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+            {isEditing ? 'Update Loan' : 'Add Loan'}
+          </button>
+        </div>
+      </form>
+    </Modal>
   )
 }

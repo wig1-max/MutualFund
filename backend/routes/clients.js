@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { getDb } from '../db/index.js'
+import { requireFields, requireEnum } from '../utils/validate.js'
 
 const router = Router()
 
@@ -40,39 +41,65 @@ function maskPan(pan) {
   return 'XXXXXX' + clean.slice(-4)
 }
 
-// GET /api/clients — list all clients with optional filters
+// GET /api/clients — list clients with optional filters + optional pagination
+//
+// Pagination is opt-in. When either `page` or `limit` query param is provided,
+// the response is wrapped as { clients, page, limit, total, totalPages }.
+// Otherwise the response is a plain array (backwards compatible with callers
+// that just need the full list for dropdowns).
+const CLIENTS_DEFAULT_LIMIT = 50
+const CLIENTS_MAX_LIMIT = 200
 router.get('/clients', (req, res) => {
   const db = getDb()
-  const { search, tag, risk_profile, review_due } = req.query
+  const { search, tag, risk_profile, review_due, page, limit } = req.query
 
-  let sql = 'SELECT * FROM clients WHERE 1=1'
-  const params = []
+  let whereSql = ' WHERE 1=1'
+  const whereParams = []
 
   if (search) {
-    sql += ' AND (name LIKE ? OR email LIKE ? OR phone LIKE ?)'
+    whereSql += ' AND (name LIKE ? OR email LIKE ? OR phone LIKE ?)'
     const q = `%${search}%`
-    params.push(q, q, q)
+    whereParams.push(q, q, q)
   }
 
   if (tag) {
-    sql += ' AND tags LIKE ?'
-    params.push(`%"${tag}"%`)
+    whereSql += ' AND tags LIKE ?'
+    whereParams.push(`%"${tag}"%`)
   }
 
   if (risk_profile) {
-    sql += ' AND risk_profile = ?'
-    params.push(risk_profile)
+    whereSql += ' AND risk_profile = ?'
+    whereParams.push(risk_profile)
   }
 
   if (review_due === 'true') {
-    sql += ' AND next_review_date <= date("now", "+7 days")'
+    whereSql += ' AND next_review_date <= date("now", "+7 days")'
   }
 
-  sql += ' ORDER BY name ASC'
+  const paginated = page !== undefined || limit !== undefined
+  const orderSql = ' ORDER BY name ASC'
 
-  const clients = db.prepare(sql).all(...params)
-  // Parse tags from JSON string
-  res.json(clients.map(c => ({ ...c, tags: safeParseTags(c.tags) })))
+  if (!paginated) {
+    const rows = db.prepare('SELECT * FROM clients' + whereSql + orderSql).all(...whereParams)
+    return res.json(rows.map(c => ({ ...c, tags: safeParseTags(c.tags) })))
+  }
+
+  const parsedLimit = Math.max(1, Math.min(CLIENTS_MAX_LIMIT,
+    parseInt(limit, 10) || CLIENTS_DEFAULT_LIMIT))
+  const parsedPage = Math.max(1, parseInt(page, 10) || 1)
+  const offset = (parsedPage - 1) * parsedLimit
+
+  const total = db.prepare('SELECT COUNT(*) as c FROM clients' + whereSql).get(...whereParams).c
+  const rows = db.prepare('SELECT * FROM clients' + whereSql + orderSql + ' LIMIT ? OFFSET ?')
+    .all(...whereParams, parsedLimit, offset)
+
+  res.json({
+    clients: rows.map(c => ({ ...c, tags: safeParseTags(c.tags) })),
+    page: parsedPage,
+    limit: parsedLimit,
+    total,
+    totalPages: Math.max(1, Math.ceil(total / parsedLimit)),
+  })
 })
 
 // GET /api/clients/stats — dashboard stats
@@ -132,14 +159,20 @@ router.get('/clients/:id', (req, res) => {
   })
 })
 
+const VALID_REVIEW_FREQUENCIES = ['Monthly', 'Quarterly', 'Half-yearly', 'Annual']
+const VALID_RISK_PROFILES      = ['Conservative', 'Moderate Conservative', 'Moderate', 'Moderately Aggressive', 'Aggressive']
+
 // POST /api/clients — create new client
 router.post('/clients', (req, res) => {
   const db = getDb()
+  requireFields(req.body, ['name'])
   const { name, phone, email, pan, risk_profile, onboarding_date, referred_by, tags, review_frequency } = req.body
 
-  if (!name || name.trim().length === 0) {
+  if (typeof name !== 'string' || name.trim().length === 0) {
     return res.status(400).json({ message: 'Client name is required' })
   }
+  requireEnum(review_frequency, VALID_REVIEW_FREQUENCIES, 'review_frequency')
+  requireEnum(risk_profile,     VALID_RISK_PROFILES,      'risk_profile')
 
   const freq = review_frequency || 'Quarterly'
   const nextReview = calcNextReview(onboarding_date || new Date().toISOString().split('T')[0], freq)
@@ -171,6 +204,9 @@ router.put('/clients/:id', (req, res) => {
   if (!existing) return res.status(404).json({ message: 'Client not found' })
 
   const { name, phone, email, pan, risk_profile, onboarding_date, referred_by, tags, review_frequency } = req.body
+
+  requireEnum(review_frequency, VALID_REVIEW_FREQUENCIES, 'review_frequency')
+  requireEnum(risk_profile,     VALID_RISK_PROFILES,      'risk_profile')
 
   const freq = review_frequency || existing.review_frequency
   // Only recalculate next_review_date if review_frequency actually changed
@@ -216,8 +252,9 @@ router.delete('/clients/:id', (req, res) => {
 // POST /api/clients/:id/notes — add note
 router.post('/clients/:id/notes', (req, res) => {
   const db = getDb()
+  requireFields(req.body, ['note'])
   const { note } = req.body
-  if (!note || note.trim().length === 0) {
+  if (typeof note !== 'string' || note.trim().length === 0) {
     return res.status(400).json({ message: 'Note text is required' })
   }
 

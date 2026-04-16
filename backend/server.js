@@ -21,6 +21,7 @@ import devlogRouter from './routes/devlog.js'
 import assetsRouter from './routes/assets.js'
 import wealthRouter from './routes/wealth.js'
 import householdTaxRouter from './routes/householdTax.js'
+import loansRouter from './routes/loans.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const app = express()
@@ -144,6 +145,7 @@ app.use('/api', factsheetsRouter)
 app.use('/api', assetsRouter)
 app.use('/api', wealthRouter)
 app.use('/api', householdTaxRouter)
+app.use('/api', loansRouter)
 app.use('/api', devlogRouter)
 
 // ---- Static file serving (production) ----
@@ -154,6 +156,23 @@ app.use(express.static(distPath))
 // SPA fallback — serve index.html for any non-API route
 app.get('*', (req, res) => {
   res.sendFile(path.join(distPath, 'index.html'))
+})
+
+// ---- 2F: Global error handler ----
+// Catches sync throws from route handlers. ValidationError (from
+// utils/validate.js) surfaces as 400. Anything else becomes a 500
+// with a generic message — the actual error is logged server-side.
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  if (err && err.name === 'ValidationError') {
+    return res.status(err.status || 400).json({
+      message: err.message,
+      field:   err.field || null,
+    })
+  }
+  console.error('[UnhandledError]', req.method, req.path, '-', err?.message || err)
+  if (err?.stack) console.error(err.stack)
+  res.status(500).json({ message: 'Internal server error' })
 })
 
 app.listen(PORT, () => {

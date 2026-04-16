@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, Line, ComposedChart, PieChart, Pie, Cell } from 'recharts'
 import { useToast } from '../components/Toast'
+import { Modal } from '../components/UI'
 import * as api from '../services/api'
 import { formatCurrency } from '../lib/utils'
 
@@ -201,14 +202,13 @@ export default function GoalPlanner() {
       )}
 
       {/* Add/Edit Form Modal */}
-      {showForm && (
-        <GoalFormModal
-          clientId={selectedClientId}
-          goal={editingGoal}
-          onClose={() => { setShowForm(false); setEditingGoal(null) }}
-          onSave={handleFormSave}
-        />
-      )}
+      <GoalFormModal
+        open={showForm}
+        clientId={selectedClientId}
+        goal={editingGoal}
+        onClose={() => { setShowForm(false); setEditingGoal(null) }}
+        onSave={handleFormSave}
+      />
 
       {/* Disclaimer */}
       {goals.length > 0 && (
@@ -339,7 +339,7 @@ function DetailField({ label, value, color = 'text-[#1B2A4A]' }) {
 }
 
 // ---------- Goal Form Modal ----------
-function GoalFormModal({ clientId, goal, onClose, onSave }) {
+function GoalFormModal({ open, clientId, goal, onClose, onSave }) {
   const { showToast } = useToast()
   const currentYear = new Date().getFullYear()
   const [form, setForm] = useState({
@@ -356,6 +356,24 @@ function GoalFormModal({ clientId, goal, onClose, onSave }) {
   })
   const [saving, setSaving] = useState(false)
   const [autoSip, setAutoSip] = useState(!goal?.monthly_sip)
+
+  // Reset state whenever the modal opens for a new/edited goal
+  useEffect(() => {
+    if (!open) return
+    setForm({
+      goal_name: goal?.goal_name || '',
+      goal_type: goal?.goal_type || 'Custom',
+      target_amount: goal?.target_amount || '',
+      target_year: goal?.target_year || currentYear + 10,
+      current_savings: goal?.current_savings || 0,
+      expected_return: goal?.expected_return ?? 12,
+      inflation_rate: goal?.inflation_rate ?? 6,
+      monthly_sip: goal?.monthly_sip || '',
+      priority: goal?.priority || 'Medium',
+      notes: goal?.notes || '',
+    })
+    setAutoSip(!goal?.monthly_sip)
+  }, [open, goal, currentYear])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -388,13 +406,8 @@ function GoalFormModal({ clientId, goal, onClose, onSave }) {
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
-          <h2 className="text-lg font-bold text-[#1B2A4A]">{goal ? 'Edit Goal' : 'Add New Goal'}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
-        </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+    <Modal open={open} onClose={onClose} title={goal ? 'Edit Goal' : 'Add New Goal'} size="md">
+      <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {/* Goal Name */}
           <div>
             <label className="text-xs text-gray-400 font-medium block mb-1.5">Goal Name *</label>
@@ -498,9 +511,8 @@ function GoalFormModal({ clientId, goal, onClose, onSave }) {
               {goal ? 'Update Goal' : 'Add Goal'}
             </button>
           </div>
-        </form>
-      </div>
-    </div>
+      </form>
+    </Modal>
   )
 }
 

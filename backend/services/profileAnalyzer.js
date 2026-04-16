@@ -69,30 +69,34 @@ export function computeProfile(raw) {
   // ─────────────────────────────────────────────────────────────
   // SCORE B: RISK TOLERANCE — psychological willingness to bear risk
   // Inputs: questionnaire responses ONLY.
-  // Base of 50; each question shifts ±points.
-  // If no questionnaire data exists, default to 50 (neutral).
+  // 8 questions, each on a 1-5 Likert scale with 3 = neutral.
+  // Higher response = higher risk tolerance.
+  // Each unit from centre shifts ±POINTS_PER_UNIT; with 8 questions
+  // at max deviation (±2) we reach the 0 or 100 bound exactly.
+  // If no questionnaire data exists, stays at 50 (neutral).
   // ─────────────────────────────────────────────────────────────
+  const QUESTION_KEYS = [
+    'market_fall_reaction',        // panic sell  → buy more
+    'loss_tolerance',              // no loss OK → large loss OK
+    'investment_experience',       // first time → expert
+    'goal_clarity',                // vague      → clearly defined
+    'time_horizon_flexibility',    // rigid      → very flexible
+    'portfolio_gain_reaction',     // lock gains → stay invested
+    'financial_literacy',          // basic      → expert
+    'income_stability_confidence', // uncertain  → very confident
+  ]
+  const SCALE_MIN = 1, SCALE_MAX = 5, SCALE_CENTER = 3
+  // 8 questions × 2 max units × 3.125 pts/unit = 50 pts (→ 0/100 bound)
+  const POINTS_PER_UNIT = 50 / (QUESTION_KEYS.length * (SCALE_MAX - SCALE_CENTER))
+
   let toleranceScore = 50
-
-  // Q1: market_fall_reaction — scale 1-10
-  // 1 = panic sell, 10 = buy more. Each point = ±2.5
-  const marketFall = Number(q.market_fall_reaction)
-  if (!isNaN(marketFall) && marketFall >= 1 && marketFall <= 10) {
-    toleranceScore += (marketFall - 5) * 2.5
-  }
-
-  // Q2: loss_tolerance — scale 1-10
-  // 1 = cannot tolerate any loss, 10 = fine with large losses
-  const lossTolerance = Number(q.loss_tolerance)
-  if (!isNaN(lossTolerance) && lossTolerance >= 1 && lossTolerance <= 10) {
-    toleranceScore += (lossTolerance - 5) * 2.5
-  }
-
-  // Q3: investment_experience — scale 1-5
-  // 1 = no experience, 5 = very experienced
-  const experience = Number(q.investment_experience)
-  if (!isNaN(experience) && experience >= 1 && experience <= 5) {
-    toleranceScore += (experience - 3) * 1.5
+  let answeredCount = 0
+  for (const key of QUESTION_KEYS) {
+    const v = Number(q[key])
+    if (!isNaN(v) && v >= SCALE_MIN && v <= SCALE_MAX) {
+      toleranceScore += (v - SCALE_CENTER) * POINTS_PER_UNIT
+      answeredCount++
+    }
   }
 
   // Clamp 0–100
@@ -151,10 +155,10 @@ export function computeProfile(raw) {
     gold   = 100 - equity - debt
   }
 
-  // Profile completeness — requires financial inputs + questionnaire
+  // Profile completeness — requires financial inputs + full questionnaire
   const hasFinancials = monthlyIncome > 0 && age > 0 &&
                         horizon > 0 && raw.tax_slab
-  const hasQuestionnaire = !isNaN(marketFall) && !isNaN(lossTolerance)
+  const hasQuestionnaire = answeredCount === QUESTION_KEYS.length
   const profile_complete = (hasFinancials && hasQuestionnaire) ? 1 : 0
 
   return {
@@ -186,8 +190,28 @@ export function computeProfile(raw) {
   }
 }
 
+// Derive monthly EMI from the client_loans table (sum of all emi_amount).
+// If the client has at least one loan record, the derived value takes
+// precedence over any manually supplied `monthly_emi` in `raw` — this is the
+// single-source-of-truth now that loans are tracked individually.
+// If no loans are recorded we fall back to raw.monthly_emi for backward
+// compatibility with older profile data.
+function deriveMonthlyEmi(clientId, rawEmi) {
+  const db = getDb()
+  const row = db.prepare(
+    'SELECT COUNT(*) AS c, COALESCE(SUM(emi_amount), 0) AS total FROM client_loans WHERE client_id = ?'
+  ).get(clientId)
+  if (row && row.c > 0) return row.total || 0
+  return Number(rawEmi) || 0
+}
+
 export function upsertProfile(clientId, raw) {
-  const computed = computeProfile(raw)
+  // Override raw.monthly_emi with the aggregate from client_loans (if any).
+  const effectiveRaw = {
+    ...raw,
+    monthly_emi: deriveMonthlyEmi(clientId, raw.monthly_emi),
+  }
+  const computed = computeProfile(effectiveRaw)
   const db = getDb()
 
   const stmt = db.prepare(`

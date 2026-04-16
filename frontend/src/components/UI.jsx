@@ -1,3 +1,76 @@
+import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
+import { X } from 'lucide-react'
+
+// Modal — portal-rendered dialog with backdrop, Esc-to-close and body scroll lock.
+// Props:
+//   open         — boolean, controls visibility
+//   onClose      — callback invoked on backdrop click / Esc / close button
+//   title        — optional string for the header
+//   size         — 'sm' | 'md' | 'lg' | 'xl'  (default 'md')
+//   children     — body content
+//   footer       — optional footer node rendered below children
+//   closeOnBackdrop — default true
+export function Modal({ open, onClose, title, size = 'md', children, footer, closeOnBackdrop = true }) {
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e) => { if (e.key === 'Escape') onClose?.() }
+    document.addEventListener('keydown', onKey)
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prevOverflow
+    }
+  }, [open, onClose])
+
+  if (!open) return null
+
+  const sizes = {
+    sm: 'max-w-sm',
+    md: 'max-w-lg',
+    lg: 'max-w-2xl',
+    xl: 'max-w-4xl',
+  }
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      onClick={() => { if (closeOnBackdrop) onClose?.() }}
+      role="dialog"
+      aria-modal="true"
+      aria-label={title || 'Dialog'}
+    >
+      <div
+        className={`w-full ${sizes[size] || sizes.md} bg-surface-800 border border-white/[0.08] rounded-2xl shadow-2xl max-h-[90vh] flex flex-col`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {title != null && (
+          <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
+            <h2 className="text-lg font-bold text-slate-100">{title}</h2>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-white/[0.06] transition-colors"
+              aria-label="Close"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        )}
+        <div className="flex-1 overflow-y-auto">
+          {children}
+        </div>
+        {footer && (
+          <div className="px-6 py-4 border-t border-white/[0.06]">
+            {footer}
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body
+  )
+}
+
 // Card — standard dark surface card
 export function Card({ children, className = '', ...props }) {
   return (

@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import {
   PieChart as PieChartIcon, Plus, Trash2, Loader2, AlertTriangle,
-  TrendingDown, Building2, Layers, BarChart3, ChevronRight, X, Wallet, Landmark,
+  TrendingDown, Building2, Layers, BarChart3, ChevronRight, Wallet, Landmark,
 } from 'lucide-react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 import { useToast } from '../components/Toast'
+import { Modal } from '../components/UI'
 import FundSearch from '../components/FundSearch'
 import * as api from '../services/api'
 import { formatCurrency, formatPercent } from '../lib/utils'
@@ -169,9 +170,11 @@ export default function PortfolioXray() {
       )}
 
       {/* Add Holding Modal */}
-      {showAddHolding && (
-        <AddHoldingModal onAdd={handleAddHolding} onClose={() => setShowAddHolding(false)} />
-      )}
+      <AddHoldingModal
+        open={showAddHolding}
+        onAdd={handleAddHolding}
+        onClose={() => setShowAddHolding(false)}
+      />
 
       {/* Wealth View Tab */}
       {activeTab === 'wealth' && selectedClientId && (
@@ -228,12 +231,18 @@ export default function PortfolioXray() {
 }
 
 // ---------- Add Holding Modal ----------
-function AddHoldingModal({ onAdd, onClose }) {
+function AddHoldingModal({ open, onAdd, onClose }) {
   const [fund, setFund] = useState(null)
   const [amount, setAmount] = useState('')
   const [units, setUnits] = useState('')
   const [purchaseDate, setPurchaseDate] = useState('')
   const [saving, setSaving] = useState(false)
+
+  // Reset form whenever the modal is re-opened
+  useEffect(() => {
+    if (!open) return
+    setFund(null); setAmount(''); setUnits(''); setPurchaseDate(''); setSaving(false)
+  }, [open])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -244,13 +253,8 @@ function AddHoldingModal({ onAdd, onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-surface-800 rounded-2xl shadow-xl w-full max-w-md">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.07]">
-          <h2 className="text-lg font-bold text-slate-100">Add Holding</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-300"><X size={18} /></button>
-        </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+    <Modal open={open} onClose={onClose} title="Add Holding" size="md">
+      <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
             <label className="text-xs text-slate-400 font-medium block mb-1.5">Fund *</label>
             <FundSearch onSelect={setFund} placeholder="Search mutual fund..." />
@@ -277,9 +281,8 @@ function AddHoldingModal({ onAdd, onClose }) {
               Add Holding
             </button>
           </div>
-        </form>
-      </div>
-    </div>
+      </form>
+    </Modal>
   )
 }
 

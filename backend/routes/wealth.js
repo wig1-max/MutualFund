@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { getDb } from '../db/index.js'
 import { estimateCurrentValue } from '../services/assetValuation.js'
 import { getAssetTypeLabel, getWealthBucket } from '../utils/assetClassification.js'
+import { analyzeInsurance } from '../services/insuranceAnalyzer.js'
 
 const router = Router()
 
@@ -81,8 +82,15 @@ router.get('/wealth/:clientId/summary', (req, res) => {
   const totalInvested = mfInvested + casInvested + householdInvested
   const totalEstimated = mfInvested + casCurrentValue + householdEstimatedValue
 
+  // 5. Insurance coverage analysis (needs monthly income from profile)
+  const profile = db.prepare(
+    'SELECT monthly_income FROM client_profiles WHERE client_id = ?'
+  ).get(req.params.clientId)
+  const insurance = analyzeInsurance(req.params.clientId, profile?.monthly_income || 0)
+
   res.json({
     client,
+    insurance,
     summary: {
       total_invested: totalInvested,
       total_estimated_value: totalEstimated,

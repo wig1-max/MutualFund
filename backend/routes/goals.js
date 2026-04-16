@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { getDb } from '../db/index.js'
 import { computeGoalAllocation, getClientWealthForGoals } from '../services/goalAllocationEngine.js'
+import { requireFields, requirePositive, requireRange, requireNonNegative } from '../utils/validate.js'
 
 const router = Router()
 
@@ -78,15 +79,18 @@ router.post('/goals/:clientId', (req, res) => {
   const client = db.prepare('SELECT id FROM clients WHERE id = ?').get(req.params.clientId)
   if (!client) return res.status(404).json({ message: 'Client not found' })
 
+  requireFields(req.body, ['goal_name', 'target_amount', 'target_year'])
   const {
     goal_name, goal_type, target_amount, target_year,
     current_savings, expected_return, inflation_rate,
     monthly_sip, priority, notes
   } = req.body
 
-  if (!goal_name || !target_amount || !target_year) {
-    return res.status(400).json({ message: 'goal_name, target_amount, and target_year are required' })
-  }
+  requirePositive(target_amount, 'target_amount')
+  requireNonNegative(current_savings, 'current_savings')
+  requireRange(expected_return, 0, 50, 'expected_return')
+  requireRange(inflation_rate,  0, 30, 'inflation_rate')
+  requireNonNegative(monthly_sip, 'monthly_sip')
 
   const currentYear = new Date().getFullYear()
   if (target_year <= currentYear) {
@@ -140,6 +144,12 @@ router.put('/goals/:clientId/:goalId', (req, res) => {
     monthly_sip, priority, notes
   } = req.body
 
+  requirePositive(target_amount, 'target_amount')
+  requireNonNegative(current_savings, 'current_savings')
+  requireRange(expected_return, 0, 50, 'expected_return')
+  requireRange(inflation_rate,  0, 30, 'inflation_rate')
+  requireNonNegative(monthly_sip, 'monthly_sip')
+
   const updatedYear = target_year ?? existing.target_year
   const updatedAmount = target_amount ?? existing.target_amount
   const updatedInflation = inflation_rate ?? existing.inflation_rate
@@ -192,10 +202,12 @@ router.delete('/goals/:clientId/:goalId', (req, res) => {
 
 // POST /api/goals/calculate — standalone SIP calculator (no persistence)
 router.post('/goals/calculate', (req, res) => {
+  requireFields(req.body, ['target_amount', 'target_year'])
   const { target_amount, target_year, current_savings, expected_return, inflation_rate } = req.body
-  if (!target_amount || !target_year) {
-    return res.status(400).json({ message: 'target_amount and target_year are required' })
-  }
+  requirePositive(target_amount, 'target_amount')
+  requireNonNegative(current_savings, 'current_savings')
+  requireRange(expected_return, 0, 50, 'expected_return')
+  requireRange(inflation_rate,  0, 30, 'inflation_rate')
 
   const currentYear = new Date().getFullYear()
   const years = target_year - currentYear

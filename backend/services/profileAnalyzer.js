@@ -190,8 +190,28 @@ export function computeProfile(raw) {
   }
 }
 
+// Derive monthly EMI from the client_loans table (sum of all emi_amount).
+// If the client has at least one loan record, the derived value takes
+// precedence over any manually supplied `monthly_emi` in `raw` — this is the
+// single-source-of-truth now that loans are tracked individually.
+// If no loans are recorded we fall back to raw.monthly_emi for backward
+// compatibility with older profile data.
+function deriveMonthlyEmi(clientId, rawEmi) {
+  const db = getDb()
+  const row = db.prepare(
+    'SELECT COUNT(*) AS c, COALESCE(SUM(emi_amount), 0) AS total FROM client_loans WHERE client_id = ?'
+  ).get(clientId)
+  if (row && row.c > 0) return row.total || 0
+  return Number(rawEmi) || 0
+}
+
 export function upsertProfile(clientId, raw) {
-  const computed = computeProfile(raw)
+  // Override raw.monthly_emi with the aggregate from client_loans (if any).
+  const effectiveRaw = {
+    ...raw,
+    monthly_emi: deriveMonthlyEmi(clientId, raw.monthly_emi),
+  }
+  const computed = computeProfile(effectiveRaw)
   const db = getDb()
 
   const stmt = db.prepare(`

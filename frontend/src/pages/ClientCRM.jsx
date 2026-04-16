@@ -5,6 +5,7 @@ import {
   Filter, Loader2, UserPlus, AlertCircle
 } from 'lucide-react'
 import { useToast } from '../components/Toast'
+import { Modal } from '../components/UI'
 import * as api from '../services/api'
 import { formatDate } from '../lib/utils'
 
@@ -27,6 +28,8 @@ const RISK_COLORS = {
   Aggressive: 'bg-red-500/10 text-red-400 border border-red-500/20',
 }
 
+const PAGE_SIZE = 50
+
 export default function ClientCRM() {
   const { showToast } = useToast()
   const [clients, setClients] = useState([])
@@ -40,23 +43,31 @@ export default function ClientCRM() {
   const [selectedClient, setSelectedClient] = useState(null)
   const [showForm, setShowForm] = useState(false)
   const [editingClient, setEditingClient] = useState(null)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [total, setTotal] = useState(0)
+
+  // Reset to page 1 whenever filters or search change
+  useEffect(() => { setPage(1) }, [search, filterTag, filterRisk, filterReviewDue])
 
   const loadClients = useCallback(async () => {
     setLoading(true)
     try {
-      const params = {}
+      const params = { page: String(page), limit: String(PAGE_SIZE) }
       if (search) params.search = search
       if (filterTag) params.tag = filterTag
       if (filterRisk) params.risk_profile = filterRisk
       if (filterReviewDue) params.review_due = 'true'
       const data = await api.getClients(params)
-      setClients(data)
+      setClients(data.clients || [])
+      setTotalPages(data.totalPages || 1)
+      setTotal(data.total || 0)
     } catch (err) {
       showToast(err.message, 'error')
     } finally {
       setLoading(false)
     }
-  }, [search, filterTag, filterRisk, filterReviewDue])
+  }, [search, filterTag, filterRisk, filterReviewDue, page])
 
   const loadStats = async () => {
     try {
@@ -275,6 +286,31 @@ export default function ClientCRM() {
               })}
             </div>
           )}
+
+          {/* Pagination controls */}
+          {!loading && total > 0 && (
+            <div className="flex items-center justify-between mt-4 px-1">
+              <p className="text-xs text-slate-500">
+                Page {page} of {totalPages} · {total} client{total === 1 ? '' : 's'}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-surface-700 border border-white/[0.08] rounded-lg text-xs font-medium text-slate-300 hover:bg-white/[0.06] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronLeft size={14} /> Previous
+                </button>
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-surface-700 border border-white/[0.08] rounded-lg text-xs font-medium text-slate-300 hover:bg-white/[0.06] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  Next <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Client Detail Panel — desktop: side-by-side, mobile: slide-over drawer */}
@@ -302,13 +338,12 @@ export default function ClientCRM() {
       </div>
 
       {/* Add/Edit Form Modal */}
-      {showForm && (
-        <ClientFormModal
-          client={editingClient}
-          onClose={handleFormClose}
-          onSave={handleFormSave}
-        />
-      )}
+      <ClientFormModal
+        open={showForm}
+        client={editingClient}
+        onClose={handleFormClose}
+        onSave={handleFormSave}
+      />
     </div>
   )
 }
@@ -503,7 +538,7 @@ function InfoField({ label, value, icon: Icon, badge }) {
 }
 
 // ---------- Client Form Modal ----------
-function ClientFormModal({ client, onClose, onSave }) {
+function ClientFormModal({ open, client, onClose, onSave }) {
   const [form, setForm] = useState({
     name: client?.name || '',
     phone: client?.phone || '',
@@ -517,6 +552,23 @@ function ClientFormModal({ client, onClose, onSave }) {
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
+
+  // Reset form each time the modal opens with a new client
+  useEffect(() => {
+    if (!open) return
+    setForm({
+      name: client?.name || '',
+      phone: client?.phone || '',
+      email: client?.email || '',
+      pan: '',
+      risk_profile: client?.risk_profile || 'Moderate',
+      onboarding_date: client?.onboarding_date || new Date().toISOString().split('T')[0],
+      referred_by: client?.referred_by || '',
+      tags: client?.tags || [],
+      review_frequency: client?.review_frequency || 'Quarterly',
+    })
+    setError(null)
+  }, [open, client])
 
   const toggleTag = (tag) => {
     setForm(f => ({
@@ -544,14 +596,8 @@ function ClientFormModal({ client, onClose, onSave }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
-          <h2 className="text-lg font-bold text-[#1B2A4A]">{client ? 'Edit Client' : 'Add New Client'}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+    <Modal open={open} onClose={onClose} title={client ? 'Edit Client' : 'Add New Client'} size="md">
+      <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
             <div className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</div>
           )}
@@ -623,9 +669,8 @@ function ClientFormModal({ client, onClose, onSave }) {
               {client ? 'Update Client' : 'Add Client'}
             </button>
           </div>
-        </form>
-      </div>
-    </div>
+      </form>
+    </Modal>
   )
 }
 

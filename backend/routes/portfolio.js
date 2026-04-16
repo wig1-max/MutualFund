@@ -3,6 +3,7 @@ import { getDb } from '../db/index.js'
 import { fetchNavHistory, fetchLatestNav } from '../services/mfapi.js'
 import { calculateReturns } from '../services/calculations.js'
 import { batchPrefetchNavs } from '../services/navCache.js'
+import { requireFields, requirePositive } from '../utils/validate.js'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -47,10 +48,10 @@ router.post('/portfolio/:clientId/holdings', (req, res) => {
   const client = db.prepare('SELECT id FROM clients WHERE id = ?').get(req.params.clientId)
   if (!client) return res.status(404).json({ message: 'Client not found' })
 
+  requireFields(req.body, ['scheme_code', 'invested_amount'])
   const { scheme_code, scheme_name, invested_amount, units, purchase_date } = req.body
-  if (!scheme_code || !invested_amount) {
-    return res.status(400).json({ message: 'scheme_code and invested_amount are required' })
-  }
+  requirePositive(invested_amount, 'invested_amount')
+  requirePositive(units, 'units')
 
   const result = db.prepare(`
     INSERT INTO client_holdings (client_id, scheme_code, scheme_name, invested_amount, units, purchase_date)
@@ -77,6 +78,8 @@ router.put('/portfolio/:clientId/holdings/:holdingId', (req, res) => {
   if (!existing) return res.status(404).json({ message: 'Holding not found' })
 
   const { scheme_code, scheme_name, invested_amount, units, purchase_date } = req.body
+  requirePositive(invested_amount, 'invested_amount')
+  requirePositive(units, 'units')
 
   db.prepare(`
     UPDATE client_holdings SET

@@ -47,21 +47,29 @@ if (process.env.NODE_ENV === 'production') {
   }
 }
 
-// ---- 1A: CORS — explicit allowlist only ----
+// ---- 1A: CORS — explicit allowlist for /api routes only ----
+// Static assets are served from the same origin as the HTML, so they don't
+// need CORS headers. Applying cors() globally was blocking the browser's
+// crossorigin fetch of /assets/*.js and /assets/*.css (Vite adds the
+// crossorigin attribute, causing Chrome to include an Origin header even for
+// same-origin asset requests, which the strict allowlist was rejecting → 500).
 const ALLOWED_ORIGINS = [
   'http://localhost:5173',
   'http://localhost:4173',
   process.env.FRONTEND_URL,
 ].filter(Boolean)
 
-app.use(cors({
+const corsMiddleware = cors({
   origin: (origin, cb) => {
     // Allow same-origin requests (no Origin header) and explicitly listed origins
     if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true)
     cb(new Error('CORS: origin not allowed'))
   },
   credentials: true,
-}))
+})
+
+// Apply CORS only to API routes, not to static file serving
+app.use('/api', corsMiddleware)
 
 app.use(express.json())
 
